@@ -234,7 +234,25 @@ def get_prediction_count_last_week():
             (one_week_ago.isoformat(),)
         ).fetchone()
         return {"count": result["count"]}
-    
+
+
+@app.get("/labels")
+def get_labels_from_last_week():
+    """
+    Get all unique object labels detected in the last 7 days
+    """
+    one_week_ago = datetime.now() - timedelta(days=7)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("""
+            SELECT DISTINCT do.label
+            FROM detection_objects do
+            JOIN prediction_sessions ps ON do.prediction_uid = ps.uid
+            WHERE ps.timestamp >= ?
+        """, (one_week_ago.isoformat(),)).fetchall()
+
+        labels = [row["label"] for row in rows]
+        return {"labels": labels}
     
 
 if __name__ == "__main__":
