@@ -6,6 +6,9 @@ import sqlite3
 import os
 import uuid
 import shutil
+from datetime import datetime, timedelta
+
+
 
 # Disable GPU usage
 import torch
@@ -217,6 +220,22 @@ def health():
     Health check endpoint
     """
     return {"status": "ok"}
+
+@app.get("/predictions/count")
+def get_prediction_count_last_week():
+    """
+    Get total number of predictions made in the last 7 days
+    """
+    one_week_ago = datetime.now() - timedelta(days=7)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        result = conn.execute(
+            "SELECT COUNT(*) as count FROM prediction_sessions WHERE timestamp >= ?",
+            (one_week_ago.isoformat(),)
+        ).fetchone()
+        return {"count": result["count"]}
+    
+    
 
 if __name__ == "__main__":
     import uvicorn
