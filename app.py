@@ -234,8 +234,57 @@ def get_prediction_count_last_week():
             (one_week_ago.isoformat(),)
         ).fetchone()
         return {"count": result["count"]}
+
+
+@app.get("/labels")
+def get_labels_from_last_week():
+    """
+    Get all unique object labels detected in the last 7 days
+    """
+    one_week_ago = datetime.now() - timedelta(days=7)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("""
+            SELECT DISTINCT do.label
+            FROM detection_objects do
+            JOIN prediction_sessions ps ON do.prediction_uid = ps.uid
+            WHERE ps.timestamp >= ?
+        """, (one_week_ago.isoformat(),)).fetchall()
+
+        labels = [row["label"] for row in rows]
+        return {"labels": labels}
     
-    
+@app.delete("/prediction/{uid}")
+def delete_prediction(uid: str):
+    """
+    Delete prediction by UID and remove associated files and DB entries
+    """
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+
+        # שלב 1: שליפת נתיב התמונות כדי למחוק מהדיסק
+        session = conn.execute(
+            "SELECT original_image, predicted_image FROM prediction_sessions WHERE uid = ?",
+            (uid,)
+        ).fetchone()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Prediction not found")
+
+        original_path = session["original_image"]
+        predicted_path = session["predicted_image"]
+
+        # שלב 2: מחיקת האובייקטים מהטבלה
+        conn.execute("DELETE FROM detection_objects WHERE prediction_uid = ?", (uid,))
+        conn.execute("DELETE FROM prediction_sessions WHERE uid = ?", (uid,))
+
+    # שלב 3: מחיקת הקבצים מהמערכת
+    for path in [original_path, predicted_path]:
+        if path and os.path.exists(path):
+            os.remove(path)
+
+    return {"detail": f"Prediction {uid} deleted successfully"}
+
 
 if __name__ == "__main__":
     import uvicorn
