@@ -286,6 +286,58 @@ def delete_prediction(uid: str):
     return {"detail": f"Prediction {uid} deleted successfully"}
 
 
+@app.get("/stats")
+def get_prediction_stats():
+    """
+    Get statistics from the last 7 days:
+    - total predictions
+    - average confidence
+    - most common labels
+    """
+    one_week_ago = datetime.now() - timedelta(days=7)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+
+        # סה"כ תחזיות
+        total_predictions = conn.execute("""
+            SELECT COUNT(*) as count
+            FROM prediction_sessions
+            WHERE timestamp >= ?
+        """, (one_week_ago.isoformat(),)).fetchone()["count"]
+
+        # ממוצע ציוני ביטחון
+        avg_conf = conn.execute("""
+            SELECT AVG(score) as avg_score
+            FROM detection_objects
+            WHERE prediction_uid IN (
+                SELECT uid FROM prediction_sessions WHERE timestamp >= ?
+            )
+        """, (one_week_ago.isoformat(),)).fetchone()["avg_score"] or 0.0
+
+        # תוויות הכי נפוצות
+        label_rows = conn.execute("""
+            SELECT label, COUNT(*) as count
+            FROM detection_objects
+            WHERE prediction_uid IN (
+                SELECT uid FROM prediction_sessions WHERE timestamp >= ?
+            )
+            GROUP BY label
+            ORDER BY count DESC
+        """, (one_week_ago.isoformat(),)).fetchall()
+
+        label_counts = {row["label"]: row["count"] for row in label_rows}
+
+        return {
+            "total_predictions": total_predictions,
+            "average_confidence_score": round(avg_conf, 2),
+            "most_common_labels": label_counts
+        }
+
+
+
+
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8080)
