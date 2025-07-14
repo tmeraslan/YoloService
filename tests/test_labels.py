@@ -4,6 +4,8 @@ from app import app
 import sqlite3
 from datetime import datetime, timedelta
 
+
+
 class TestLabelsEndpoint(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
@@ -20,6 +22,10 @@ class TestLabelsEndpoint(unittest.TestCase):
                 INSERT INTO detection_objects (prediction_uid, label, score, box)
                 VALUES (?, ?, ?, ?)
             """, (self.test_uid, "cat", 0.9, "[0,0,50,50]"))
+            conn.execute("""
+                INSERT INTO detection_objects (prediction_uid, label, score, box)
+                VALUES (?, ?, ?, ?)
+            """, (self.test_uid, "cat", 0.8, "[0,0,50,50]"))
             conn.execute("""
                 INSERT INTO detection_objects (prediction_uid, label, score, box)
                 VALUES (?, ?, ?, ?)
@@ -40,3 +46,4 @@ class TestLabelsEndpoint(unittest.TestCase):
         self.assertIn("labels", data)
         self.assertIn("cat", data["labels"])
         self.assertIn("dog", data["labels"])
+
