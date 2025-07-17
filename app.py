@@ -64,6 +64,9 @@ def init_db():
             )
         """)
         
+        conn.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", ("testuser", "testpass"))
+
+        
         # Create index for faster queries
         conn.execute("CREATE INDEX IF NOT EXISTS idx_prediction_uid ON detection_objects (prediction_uid)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_label ON detection_objects (label)")

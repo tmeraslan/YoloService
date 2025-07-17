@@ -3,9 +3,9 @@ from fastapi.testclient import TestClient
 from app import app
 import sqlite3
 from datetime import datetime
+from tests.utils import get_auth_headers
 
 class TestStatsEndpoint(unittest.TestCase):
-
     def setUp(self):
         self.client = TestClient(app)
         self.uid = "test-stats-uid"
@@ -35,7 +35,7 @@ class TestStatsEndpoint(unittest.TestCase):
             conn.execute("DELETE FROM prediction_sessions WHERE uid = ?", (self.uid,))
 
     def test_stats_endpoint(self):
-        response = self.client.get("/stats")
+        response = self.client.get("/stats", headers=get_auth_headers())
         self.assertEqual(response.status_code, 200)
         data = response.json()
 
