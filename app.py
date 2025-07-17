@@ -7,6 +7,7 @@ import os
 import uuid
 import shutil
 from datetime import datetime, timedelta
+from auth_middleware import basic_auth_middleware
 
 
 
@@ -15,6 +16,8 @@ import torch
 torch.cuda.is_available = lambda: False
 
 app = FastAPI()
+
+app.middleware("http")(basic_auth_middleware())
 
 UPLOAD_DIR = "uploads/original"
 PREDICTED_DIR = "uploads/predicted"
@@ -29,13 +32,23 @@ model = YOLO("yolov8n.pt")
 # Initialize SQLite
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                password TEXT NOT NULL
+            )
+        """)
+
         # Create the predictions main table to store the prediction session
         conn.execute("""
             CREATE TABLE IF NOT EXISTS prediction_sessions (
                 uid TEXT PRIMARY KEY,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 original_image TEXT,
-                predicted_image TEXT
+                predicted_image TEXT,
+                username TEXT,
+                FOREIGN KEY (username) REFERENCES users(username)
             )
         """)
         
@@ -51,12 +64,17 @@ def init_db():
             )
         """)
         
+        conn.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", ("testuser", "testpass"))
+
+        
         # Create index for faster queries
         conn.execute("CREATE INDEX IF NOT EXISTS idx_prediction_uid ON detection_objects (prediction_uid)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_label ON detection_objects (label)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_score ON detection_objects (score)")
 
 init_db()
+
+
 
 def save_prediction_session(uid, original_image, predicted_image):
     """

@@ -2,9 +2,8 @@ import unittest
 from fastapi.testclient import TestClient
 from app import app
 import sqlite3
-from datetime import datetime, timedelta
-
-
+from datetime import datetime
+from tests.utils import get_auth_headers
 
 class TestLabelsEndpoint(unittest.TestCase):
     def setUp(self):
@@ -40,10 +39,9 @@ class TestLabelsEndpoint(unittest.TestCase):
             conn.execute("DELETE FROM prediction_sessions WHERE uid = ?", (self.test_uid,))
 
     def test_labels_endpoint(self):
-        response = self.client.get("/labels")
+        response = self.client.get("/labels", headers=get_auth_headers())
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertIn("labels", data)
         self.assertIn("cat", data["labels"])
         self.assertIn("dog", data["labels"])
-

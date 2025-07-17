@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from app import app
 import sqlite3
 import os
+from tests.utils import get_auth_headers
 
 class TestDeletePrediction(unittest.TestCase):
     def setUp(self):
@@ -10,7 +11,6 @@ class TestDeletePrediction(unittest.TestCase):
         self.uid = "test-delete-uid"
         self.original_image = f"uploads/original/{self.uid}.jpg"
         self.predicted_image = f"uploads/predicted/{self.uid}.jpg"
-
 
         # יצירת תמונות דמה
         os.makedirs("uploads/original", exist_ok=True)
@@ -40,7 +40,7 @@ class TestDeletePrediction(unittest.TestCase):
                 os.remove(path)
 
     def test_delete_prediction_success(self):
-        response = self.client.delete(f"/prediction/{self.uid}")
+        response = self.client.delete(f"/prediction/{self.uid}", headers=get_auth_headers())
         self.assertEqual(response.status_code, 200)
         self.assertIn("deleted successfully", response.json()["detail"])
 

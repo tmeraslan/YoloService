@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from app import app
 from datetime import datetime, timedelta
 import sqlite3
+from tests.utils import get_auth_headers
 
 class TestPredictionCount(unittest.TestCase):
     def setUp(self):
@@ -26,7 +27,7 @@ class TestPredictionCount(unittest.TestCase):
         self.cleanup()
 
     def test_prediction_count_endpoint(self):
-        response = self.client.get("/predictions/count")
+        response = self.client.get("/predictions/count", headers=get_auth_headers())
         self.assertEqual(response.status_code, 200)
         self.assertIn("count", response.json())
         self.assertGreaterEqual(response.json()["count"], 1)
