@@ -219,7 +219,7 @@ def health():
     """
     Health check endpoint
     """
-    return {"status": "ok"}
+    return {"status": "ok!"}
 
 @app.get("/predictions/count")
 def get_prediction_count_last_week():
