@@ -9,7 +9,7 @@ class TestPredictionCount(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
 
-        # הוספת נתוני דמה במסד
+        # Adding dummy data to the database
         self.cleanup()
         now = datetime.now()
         past = now - timedelta(days=3)

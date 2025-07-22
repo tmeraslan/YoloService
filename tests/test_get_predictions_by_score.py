@@ -35,3 +35,9 @@ class TestGetPredictionsByScore(unittest.TestCase):
         data = resp.json()
         uids = [row["uid"] for row in data]
         self.assertIn(self.uid, uids)
+
+    def test_get_predictions_by_score_no_results(self):
+        # Too high a score that should not return anything
+        resp = client.get("/predictions/score/0.99", headers=get_auth_headers())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), [])

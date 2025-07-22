@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi.testclient import TestClient
 from app import app
 from tests.utils import get_auth_headers
-
+import  uuid
 client = TestClient(app)
 
 class TestGetImage(unittest.TestCase):
@@ -47,3 +47,24 @@ class TestGetImage(unittest.TestCase):
         filename = os.path.basename(self.predicted_path)
         resp = client.get(f"/image/predicted/{filename}",headers=get_auth_headers())
         self.assertEqual(resp.status_code, 200)
+
+    def test_get_image_invalid_type(self):
+        response = client.get("/image/wrong/fake.jpg", headers=get_auth_headers())
+        self.assertEqual(response.status_code, 400)
+
+    def test_get_image_not_found(self):
+        response = client.get("/image/original/non_existent.jpg", headers=get_auth_headers())
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_prediction_image_not_acceptable(self):
+        uid = self.uid  # For example, using the UID defined in setUp
+        response = client.get(f"/prediction/{uid}/image", headers={"accept": "application/json", **get_auth_headers()})
+        self.assertEqual(response.status_code, 406)
+
+    def test_get_prediction_image_not_found(self):
+        uid = str(uuid.uuid4())
+        with sqlite3.connect("predictions.db") as conn:
+            conn.execute("INSERT INTO prediction_sessions (uid, original_image, predicted_image) VALUES (?, ?, ?)",
+                        (uid, "path1", "uploads/predicted/somefile.jpg"))
+        response = client.get(f"/prediction/{uid}/image", headers={"accept": "image/png", **get_auth_headers()})
+        self.assertEqual(response.status_code, 404)

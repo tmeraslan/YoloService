@@ -12,7 +12,7 @@ class TestDeletePrediction(unittest.TestCase):
         self.original_image = f"uploads/original/{self.uid}.jpg"
         self.predicted_image = f"uploads/predicted/{self.uid}.jpg"
 
-        # יצירת תמונות דמה
+        # Creating dummy images
         os.makedirs("uploads/original", exist_ok=True)
         os.makedirs("uploads/predicted", exist_ok=True)
         with open(self.original_image, "w") as f:
@@ -20,7 +20,7 @@ class TestDeletePrediction(unittest.TestCase):
         with open(self.predicted_image, "w") as f:
             f.write("predicted")
 
-        # הכנסת רשומות למסד
+        # Entering records into the database
         with sqlite3.connect("predictions.db") as conn:
             conn.execute("""
                 INSERT INTO prediction_sessions (uid, original_image, predicted_image)
@@ -44,11 +44,11 @@ class TestDeletePrediction(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("deleted successfully", response.json()["detail"])
 
-        # בדיקה שהקבצים נמחקו
+        # Checking that the files have been deleted
         self.assertFalse(os.path.exists(self.original_image))
         self.assertFalse(os.path.exists(self.predicted_image))
 
-        # בדיקה שהרשומות נמחקו מהמסד
+        # Check that the records have been deleted from the database
         with sqlite3.connect("predictions.db") as conn:
             session = conn.execute("SELECT * FROM prediction_sessions WHERE uid = ?", (self.uid,)).fetchone()
             self.assertIsNone(session)
