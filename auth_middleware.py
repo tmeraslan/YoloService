@@ -1,57 +1,33 @@
 import base64
-import sqlite3
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from db import get_db
+from queries import get_user
 
-DB_PATH = "predictions.db"
+async def basic_auth_middleware(request: Request, call_next):
+    open_paths = ["/health"]
+    if request.url.path in open_paths:
+        return await call_next(request)
 
-def verify_user(auth_header: str):
-    if not auth_header or not auth_header.startswith("Basic "):
-        return None
+    auth = request.headers.get("Authorization")
+    if not auth or not auth.startswith("Basic "):
+        return JSONResponse(status_code=401, content={"detail": "Invalid or missing credentials"})
+
     try:
-        encoded = auth_header.split(" ")[1]
+        encoded = auth.split(" ")[1]
         decoded = base64.b64decode(encoded).decode("utf-8")
         username, password = decoded.split(":", 1)
     except Exception:
-        return None
-    with sqlite3.connect(DB_PATH) as conn:
-        row = conn.execute(
-            "SELECT * FROM users WHERE username=? AND password=?",
-            (username, password)
-        ).fetchone()
-        if row:
-            return username
-    return None
+        return JSONResponse(status_code=401, content={"detail": "Invalid authentication header"})
 
-def basic_auth_middleware():
-    async def middleware(request: Request, call_next):
-        #  Define paths that are open to everyone
-        open_paths = ["/health"]
-
-        if request.url.path in open_paths:
-            # No authentication required
-            return await call_next(request)
-
-        # /predict POST route - optional authentication
-        if request.url.path == "/predict" and request.method.upper() == "POST":
-            auth = request.headers.get("Authorization")
-            if auth:
-                username = verify_user(auth)
-                if username is None:
-                    return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
-                request.state.username = username
-            else:
-                # If no authentication, still allow access
-                request.state.username = None
-            return await call_next(request)
-
-        # All other routes require authentication
-        auth = request.headers.get("Authorization")
-        username = verify_user(auth)
-        if username is None:
-            return JSONResponse(status_code=401, content={"detail": "Invalid or missing credentials"})
+    # Get DB session
+    async for db in get_db():
+        user = get_user(db, username, password)
+        if user is None:
+            return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
         request.state.username = username
-        return await call_next(request)
+        break
 
-    return middleware
-
+    response = await call_next(request)
+    return response
