@@ -1,44 +1,39 @@
+# app.py
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends
 from fastapi.responses import FileResponse
 from ultralytics import YOLO
 from PIL import Image
-import os
-import uuid
-import shutil
+import os, uuid, shutil
 from datetime import datetime, timedelta
-import torch
-from sqlalchemy.orm import Session
-
-from db import get_db, Base, engine
-from queries import (
-    save_prediction_session,
-    save_detection_object,
-    get_prediction_by_uid,
-    delete_prediction_by_uid,
-    create_user_if_not_exists
-)
 from auth_middleware import basic_auth_middleware
+from sqlalchemy.orm import Session
+import queries
+from db import get_db
+import torch
+
+
+DB_PATH = "predictions.db"
+
+# Create the tables if they do not exist.
+get_db()
 
 # Disable GPU
 torch.cuda.is_available = lambda: False
 
 app = FastAPI()
-
-app.middleware("http")(basic_auth_middleware)
+app.middleware("http")(basic_auth_middleware())
 
 UPLOAD_DIR = "uploads/original"
 PREDICTED_DIR = "uploads/predicted"
-DB_PATH = "predictions.db"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(PREDICTED_DIR, exist_ok=True)
-
-# Create tables in DB
-Base.metadata.create_all(bind=engine)
-
 model = YOLO("yolov8n.pt")
 
+
 @app.post("/predict")
-async def predict(file: UploadFile = File(...), request: Request = None, db: Session = Depends(get_db)):
+def predict(
+    file: UploadFile = File(...),
+    request: Request = None,
+    db: Session = Depends(get_db)
+):
     ext = os.path.splitext(file.filename)[1]
     uid = str(uuid.uuid4())
     original_path = os.path.join(UPLOAD_DIR, uid + ext)
@@ -48,55 +43,129 @@ async def predict(file: UploadFile = File(...), request: Request = None, db: Ses
         shutil.copyfileobj(file.file, f)
 
     results = model(original_path, device="cpu")
-
     annotated_frame = results[0].plot()
-    annotated_image = Image.fromarray(annotated_frame)
-    annotated_image.save(predicted_path)
+    Image.fromarray(annotated_frame).save(predicted_path)
 
     username = getattr(request.state, "username", None)
-    # Create test user if needed (for demo purposes)
-    if username:
-        create_user_if_not_exists(db, username, "testpass")
-
-    save_prediction_session(db, uid, original_path, predicted_path, username)
+    queries.save_prediction_session(db, uid, original_path, predicted_path, username)
 
     detected_labels = []
     for box in results[0].boxes:
-        label_idx = int(box.cls[0].item())
-        label = model.names[label_idx]
+        label = model.names[int(box.cls[0].item())]
         score = float(box.conf[0])
         bbox = box.xyxy[0].tolist()
-        save_detection_object(db, uid, label, score, str(bbox))
+        queries.save_detection_object(db, uid, label, score, str(bbox))
         detected_labels.append(label)
 
-    return {
-        "prediction_uid": uid,
-        "detection_count": len(results[0].boxes),
-        "labels": detected_labels
-    }
+    return {"prediction_uid": uid, "detection_count": len(results[0].boxes), "labels": detected_labels}
+
 
 @app.get("/prediction/{uid}")
-def get_prediction(uid: str, db: Session = Depends(get_db)):
-    prediction = get_prediction_by_uid(db, uid)
-    if not prediction:
+def get_prediction_by_uid(uid: str, db: Session = Depends(get_db)):
+    session = queries.get_prediction_by_uid(db, uid)
+    if not session:
         raise HTTPException(status_code=404, detail="Prediction not found")
 
+    objects = queries.get_objects_by_uid(db, uid)
     return {
-        "uid": prediction.uid,
-        "timestamp": prediction.timestamp,
-        "original_image": prediction.original_image,
-        "predicted_image": prediction.predicted_image,
-        "username": prediction.username
+        "uid": session.uid,
+        "timestamp": session.timestamp.isoformat(),
+        "original_image": session.original_image,
+        "predicted_image": session.predicted_image,
+        "detection_objects": [obj.__dict__ for obj in objects],
     }
+
+
+@app.get("/predictions/label/{label}")
+def get_predictions_by_label(label: str, db: Session = Depends(get_db)):
+    return queries.get_predictions_by_label(db, label)
+
+
+@app.get("/predictions/score/{min_score}")
+def get_predictions_by_score(min_score: float, db: Session = Depends(get_db)):
+    return queries.get_predictions_by_score(db, min_score)
+
 
 @app.delete("/prediction/{uid}")
 def delete_prediction(uid: str, db: Session = Depends(get_db)):
-    success = delete_prediction_by_uid(db, uid)
-    if not success:
+    prediction = queries.delete_prediction(db, uid)
+    if not prediction:
         raise HTTPException(status_code=404, detail="Prediction not found")
 
-    # Also delete files (you may want to do it in queries.py as well)
-    # Example code:
-    # os.remove(prediction.original_image), etc.
-
+    files = [prediction.original_image, prediction.predicted_image]
+    for path in files:
+        if path and os.path.exists(path):
+            os.remove(path)
     return {"detail": f"Prediction {uid} deleted successfully"}
+
+
+
+
+
+@app.get("/predictions/count")
+def get_count(db: Session = Depends(get_db)):
+    count = queries.get_prediction_count_last_week(db)
+    return {"count": count}
+
+
+@app.get("/labels")
+def get_labels(db: Session = Depends(get_db)):
+    labels = queries.get_labels_from_last_week(db)
+    return {"labels": labels}
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok!"}
+
+from fastapi.responses import FileResponse
+from fastapi import HTTPException
+
+@app.get("/image/{image_type}/{filename}")
+def get_image(image_type: str, filename: str):
+    if image_type not in ("original", "predicted"):
+        raise HTTPException(status_code=400, detail="Invalid image type")
+
+    base_dir = {
+        "original": UPLOAD_DIR,
+        "predicted": PREDICTED_DIR,
+    }[image_type]
+
+    file_path = os.path.join(base_dir, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    return FileResponse(file_path)
+
+from fastapi import Request
+
+@app.get("/prediction/{uid}/image")
+def get_prediction_image(uid: str, request: Request, db: Session = Depends(get_db)):
+    session = queries.get_prediction_by_uid(db, uid)
+    if not session:
+        raise HTTPException(status_code=404, detail="Prediction not found")
+
+    accept_header = request.headers.get("accept", "").lower()
+
+    # Let's get the path of the predicted file.
+    predicted_path = session.predicted_image
+    if not os.path.exists(predicted_path):
+        raise HTTPException(status_code=404, detail="Predicted image file not found")
+
+    # Check if the image type is suitable for Accept
+    if "image/png" in accept_header or "image/*" in accept_header:
+       
+        return FileResponse(predicted_path, media_type="image/png")
+
+    elif "image/jpeg" in accept_header or "image/jpg" in accept_header:
+       
+        return FileResponse(predicted_path, media_type="image/jpeg")
+
+    else:
+        raise HTTPException(status_code=406, detail="Not Acceptable")
+
+
+@app.get("/stats")
+def stats(db: Session = Depends(get_db)):
+    return queries.get_prediction_stats(db)
+

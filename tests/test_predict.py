@@ -2,10 +2,12 @@ import unittest
 import io
 import os
 import base64
-import sqlite3
 from fastapi.testclient import TestClient
 from PIL import Image
 from app import app
+# ✨ ייבוא של SQLAlchemy
+from db import SessionLocal
+from models import PredictionSession
 
 client = TestClient(app)
 
@@ -15,7 +17,7 @@ def get_auth_headers():
     encoded = base64.b64encode(creds.encode()).decode()
     return {"Authorization": f"Basic {encoded}"}
 
-#A function that produces a simple image
+# A function that produces a simple image
 def create_image_bytes():
     img = Image.new("RGB", (20, 20), color=(0, 255, 0))
     buf = io.BytesIO()
@@ -34,7 +36,7 @@ class TestPredictEndpoint(unittest.TestCase):
         self.assertIn("prediction_uid", data)
         self.assertIn("labels", data)
         self.assertIn("detection_count", data)
-        #Make sure the file is saved.
+        # Make sure the file is saved.
         predicted_path = os.path.join("uploads/predicted", f"{data['prediction_uid']}.jpg")
         self.assertTrue(os.path.exists(predicted_path))
 
@@ -45,16 +47,16 @@ class TestPredictEndpoint(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertIn("prediction_uid", data)
-        # Checking the database
-        with sqlite3.connect("predictions.db") as conn:
-            row = conn.execute(
-                "SELECT * FROM prediction_sessions WHERE uid = ?",
-                (data["prediction_uid"],)
-            ).fetchone()
+
+        # ✨ בדיקה באמצעות SQLAlchemy
+        db = SessionLocal()
+        try:
+            row = db.query(PredictionSession).filter_by(uid=data["prediction_uid"]).first()
             self.assertIsNotNone(row)
+        finally:
+            db.close()
 
     def test_predict_runs_yolo_and_saves_image(self):
-       
         img_bytes = create_image_bytes()
         files = {"file": ("cover.jpg", img_bytes, "image/jpeg")}
         resp = client.post("/predict", files=files, headers=get_auth_headers())
@@ -65,11 +67,11 @@ class TestPredictEndpoint(unittest.TestCase):
         # Verify that an output image file has been created.
         self.assertTrue(os.path.exists(predicted_path))
 
-
     def test_predict_with_detected_object(self):
+        # make sure beatles.jpeg exists in your test directory
         with open("beatles.jpeg", "rb") as f:
-          files = {"file": ("beatles.jpeg", f, "image/jpeg")}
-          resp = client.post("/predict", files=files, headers=get_auth_headers())
+            files = {"file": ("beatles.jpeg", f, "image/jpeg")}
+            resp = client.post("/predict", files=files, headers=get_auth_headers())
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         # Verify labels are found

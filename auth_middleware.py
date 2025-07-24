@@ -1,33 +1,56 @@
+# auth_middleware.py
 import base64
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-from db import get_db
-from queries import get_user
+from db import SessionLocal
+from models import User
 
-async def basic_auth_middleware(request: Request, call_next):
-    open_paths = ["/health"]
-    if request.url.path in open_paths:
-        return await call_next(request)
-
-    auth = request.headers.get("Authorization")
-    if not auth or not auth.startswith("Basic "):
-        return JSONResponse(status_code=401, content={"detail": "Invalid or missing credentials"})
-
+def verify_user(username: str, password: str):
+    db = SessionLocal()
     try:
-        encoded = auth.split(" ")[1]
-        decoded = base64.b64decode(encoded).decode("utf-8")
-        username, password = decoded.split(":", 1)
-    except Exception:
-        return JSONResponse(status_code=401, content={"detail": "Invalid authentication header"})
+        user = db.query(User).filter_by(username=username, password=password).first()
+        return user is not None
+    finally:
+        db.close()
 
-    # Get DB session
-    async for db in get_db():
-        user = get_user(db, username, password)
-        if user is None:
+def basic_auth_middleware():
+    async def middleware(request: Request, call_next):
+        open_paths = ["/health"]
+
+        # open endpoints
+        if request.url.path in open_paths:
+            return await call_next(request)
+
+        # POST /predict - optional auth
+        if request.url.path == "/predict" and request.method.upper() == "POST":
+            auth = request.headers.get("Authorization")
+            if auth:
+                try:
+                    encoded = auth.split(" ")[1]
+                    decoded = base64.b64decode(encoded).decode("utf-8")
+                    username, password = decoded.split(":", 1)
+                except Exception:
+                    return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
+                if not verify_user(username, password):
+                    return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
+                request.state.username = username
+            else:
+                request.state.username = None
+            return await call_next(request)
+
+        # all other routes require auth
+        auth = request.headers.get("Authorization")
+        if not auth:
+            return JSONResponse(status_code=401, content={"detail": "Missing credentials"})
+        try:
+            encoded = auth.split(" ")[1]
+            decoded = base64.b64decode(encoded).decode("utf-8")
+            username, password = decoded.split(":", 1)
+        except Exception:
+            return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
+        if not verify_user(username, password):
             return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
         request.state.username = username
-        break
+        return await call_next(request)
 
-    response = await call_next(request)
-    return response
+    return middleware

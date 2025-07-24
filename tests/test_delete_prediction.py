@@ -1,9 +1,11 @@
+# tests/test_delete_prediction.py
 import unittest
 from fastapi.testclient import TestClient
 from app import app
-import sqlite3
 import os
 from tests.utils import get_auth_headers
+from db import SessionLocal
+from models import PredictionSession, DetectionObject
 
 class TestDeletePrediction(unittest.TestCase):
     def setUp(self):
@@ -12,7 +14,7 @@ class TestDeletePrediction(unittest.TestCase):
         self.original_image = f"uploads/original/{self.uid}.jpg"
         self.predicted_image = f"uploads/predicted/{self.uid}.jpg"
 
-        # Creating dummy images
+        # יצירת קבצי תמונה דמיוניים
         os.makedirs("uploads/original", exist_ok=True)
         os.makedirs("uploads/predicted", exist_ok=True)
         with open(self.original_image, "w") as f:
@@ -20,35 +22,57 @@ class TestDeletePrediction(unittest.TestCase):
         with open(self.predicted_image, "w") as f:
             f.write("predicted")
 
-        # Entering records into the database
-        with sqlite3.connect("predictions.db") as conn:
-            conn.execute("""
-                INSERT INTO prediction_sessions (uid, original_image, predicted_image)
-                VALUES (?, ?, ?)
-            """, (self.uid, self.original_image, self.predicted_image))
-            conn.execute("""
-                INSERT INTO detection_objects (prediction_uid, label, score, box)
-                VALUES (?, ?, ?, ?)
-            """, (self.uid, "test", 0.9, "[0,0,10,10]"))
+        # הכנסת רשומות ל‑DB באמצעות SQLAlchemy
+        db = SessionLocal()
+        try:
+            session = PredictionSession(
+                uid=self.uid,
+                original_image=self.original_image,
+                predicted_image=self.predicted_image
+            )
+            db.add(session)
+            db.commit()
+
+            obj = DetectionObject(
+                prediction_uid=self.uid,
+                label="test",
+                score=0.9,
+                box="[0,0,10,10]"
+            )
+            db.add(obj)
+            db.commit()
+        finally:
+            db.close()
 
     def tearDown(self):
-        with sqlite3.connect("predictions.db") as conn:
-            conn.execute("DELETE FROM detection_objects WHERE prediction_uid = ?", (self.uid,))
-            conn.execute("DELETE FROM prediction_sessions WHERE uid = ?", (self.uid,))
+        # מחיקת הרשומות דרך SQLAlchemy
+        db = SessionLocal()
+        try:
+            db.query(DetectionObject).filter(DetectionObject.prediction_uid == self.uid).delete()
+            db.query(PredictionSession).filter(PredictionSession.uid == self.uid).delete()
+            db.commit()
+        finally:
+            db.close()
+
+        # מחיקת הקבצים
         for path in [self.original_image, self.predicted_image]:
             if os.path.exists(path):
                 os.remove(path)
 
     def test_delete_prediction_success(self):
-        response = self.client.delete(f"/prediction/{self.uid}", headers=get_auth_headers())
+        # קריאת ה‑endpoint עם כותרות אימות
+        response = self.client.delete(f"/prediction/{self.uid}", headers=get_auth_headers("testuser", "testpass"))
         self.assertEqual(response.status_code, 200)
         self.assertIn("deleted successfully", response.json()["detail"])
 
-        # Checking that the files have been deleted
+        # וידוא שהקבצים נמחקו
         self.assertFalse(os.path.exists(self.original_image))
         self.assertFalse(os.path.exists(self.predicted_image))
 
-        # Check that the records have been deleted from the database
-        with sqlite3.connect("predictions.db") as conn:
-            session = conn.execute("SELECT * FROM prediction_sessions WHERE uid = ?", (self.uid,)).fetchone()
+        # וידוא שהרשומות נמחקו מה‑DB
+        db = SessionLocal()
+        try:
+            session = db.query(PredictionSession).filter_by(uid=self.uid).first()
             self.assertIsNone(session)
+        finally:
+            db.close()

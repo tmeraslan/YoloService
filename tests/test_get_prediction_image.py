@@ -1,27 +1,42 @@
 import unittest
 import os
-import sqlite3
 from datetime import datetime
 from fastapi.testclient import TestClient
-from app import app, DB_PATH
+from app import app
 from tests.utils import get_auth_headers
+
+# ✨ ייבוא SQLAlchemy
+from db import SessionLocal
+from models import PredictionSession
 
 client = TestClient(app)
 
 class TestGetPredictionImage(unittest.TestCase):
     def setUp(self):
         self.uid = "test-getimg-uid"
-        self.clean()
         self.predicted_path = f"uploads/predicted/{self.uid}.jpg"
+
+        # נקה קודם
+        self.clean()
+
+        # צור קובץ דמה
         os.makedirs("uploads/predicted", exist_ok=True)
         with open(self.predicted_path, "w") as f:
             f.write("dummy")
-        now = datetime.now().isoformat()
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute("""
-                INSERT INTO prediction_sessions (uid, timestamp, original_image, predicted_image)
-                VALUES (?, ?, ?, ?)
-            """, (self.uid, now, "uploads/original/x.jpg", self.predicted_path))
+
+        # הוספת רשומה באמצעות SQLAlchemy
+        db = SessionLocal()
+        try:
+            row = PredictionSession(
+                uid=self.uid,
+                timestamp=datetime.utcnow(),
+                original_image="uploads/original/x.jpg",
+                predicted_image=self.predicted_path
+            )
+            db.add(row)
+            db.commit()
+        finally:
+            db.close()
 
     def tearDown(self):
         self.clean()
@@ -29,10 +44,15 @@ class TestGetPredictionImage(unittest.TestCase):
             os.remove(self.predicted_path)
 
     def clean(self):
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute("DELETE FROM prediction_sessions WHERE uid = ?", (self.uid,))
+        # מחיקת הרשומה מה‑DB
+        db = SessionLocal()
+        try:
+            db.query(PredictionSession).filter(PredictionSession.uid == self.uid).delete()
+            db.commit()
+        finally:
+            db.close()
 
-    # --- Existing tests---
+    # --- Existing tests ---
     def test_get_prediction_image_png(self):
         resp = client.get(
             f"/prediction/{self.uid}/image",
@@ -54,7 +74,7 @@ class TestGetPredictionImage(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 406)
 
-    # --- New tests for edge cases---
+    # --- New tests for edge cases ---
     def test_get_prediction_image_uid_not_found(self):
         resp = client.get(
             "/prediction/nonexistent-uid/image",
@@ -63,14 +83,25 @@ class TestGetPredictionImage(unittest.TestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_get_prediction_image_file_missing(self):
-        # Inserting a record with a non-existent file
+        # הוסף רשומה עם קובץ שלא קיים
         fake_uid = "fake-uid"
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute("DELETE FROM prediction_sessions WHERE uid = ?", (fake_uid,))
-            conn.execute(
-                "INSERT INTO prediction_sessions (uid, timestamp, original_image, predicted_image) VALUES (?, ?, ?, ?)",
-                (fake_uid, datetime.now().isoformat(), "uploads/original/y.jpg", "uploads/predicted/missing.jpg")
+
+        db = SessionLocal()
+        try:
+            # מחק אם קיימת
+            db.query(PredictionSession).filter(PredictionSession.uid == fake_uid).delete()
+            db.commit()
+            # הוסף
+            row = PredictionSession(
+                uid=fake_uid,
+                timestamp=datetime.utcnow(),
+                original_image="uploads/original/y.jpg",
+                predicted_image="uploads/predicted/missing.jpg"
             )
+            db.add(row)
+            db.commit()
+        finally:
+            db.close()
 
         resp = client.get(
             f"/prediction/{fake_uid}/image",
