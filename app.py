@@ -15,10 +15,12 @@ from fastapi import HTTPException
 from db import get_db, engine, Base
 
 
+
 DB_PATH = "predictions.db"
 
 # Create the tables if they do not exist.
 Base.metadata.create_all(bind=engine)
+# get_db()
 
 # Disable GPU
 torch.cuda.is_available = lambda: False

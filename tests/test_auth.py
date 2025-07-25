@@ -1,4 +1,5 @@
 # tests/test_auth.py
+
 import io
 import unittest
 from fastapi.testclient import TestClient
@@ -20,6 +21,9 @@ def create_dummy_image():
     return buf
 
 class TestAuth(unittest.TestCase):
+
+  
+        
 
     def test_health_no_auth(self):
         resp = client.get("/health")
