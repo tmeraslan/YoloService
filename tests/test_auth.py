@@ -9,7 +9,7 @@ from PIL import Image
 from tests.seed_user import seed_test_user
 
 #Make sure the user for testing exists.
-
+seed_test_user()
 
 client = TestClient(app)
 
@@ -22,8 +22,8 @@ def create_dummy_image():
 
 class TestAuth(unittest.TestCase):
 
-    def test_test_user(self):
-        seed_test_user()
+  
+        
 
     def test_health_no_auth(self):
         resp = client.get("/health")
