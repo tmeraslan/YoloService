@@ -1,9 +1,11 @@
+# queries.py
+
 from sqlalchemy.orm import Session
 from models import PredictionSession, DetectionObject
 from datetime import datetime, timedelta
 
-# queries.py
-def save_prediction_session(db, uid, original_image, predicted_image, username=None):
+
+def query_save_prediction_session(db, uid, original_image, predicted_image, username=None):
     # Create a new object of the PredictionSession table
     session = PredictionSession(
         uid=uid,
@@ -16,15 +18,15 @@ def save_prediction_session(db, uid, original_image, predicted_image, username=N
     db.commit()
 
 
-def save_detection_object(db: Session, prediction_uid: str, label: str, score: float, box: str):
+def query_save_detection_object(db: Session, prediction_uid: str, label: str, score: float, box: str):
     obj = DetectionObject(prediction_uid=prediction_uid, label=label, score=score, box=str(box))
     db.add(obj)
     db.commit()
 
-def get_prediction_by_uid(db: Session, uid: str):
+def query_get_prediction_by_uid(db: Session, uid: str):
     return db.query(PredictionSession).filter_by(uid=uid).first()
 
-def get_predictions_by_label(db: Session, label: str):
+def query_get_predictions_by_label(db: Session, label: str):
     rows = (db.query(PredictionSession.uid, PredictionSession.timestamp)
               .join(DetectionObject, DetectionObject.prediction_uid == PredictionSession.uid)
               .filter(DetectionObject.label == label)
@@ -41,7 +43,7 @@ def get_predictions_by_label(db: Session, label: str):
     ]
 
 
-def get_predictions_by_score(db: Session, min_score: float):
+def query_get_predictions_by_score(db: Session, min_score: float):
     rows = (db.query(PredictionSession.uid, PredictionSession.timestamp)
               .join(DetectionObject, DetectionObject.prediction_uid == PredictionSession.uid)
               .filter(DetectionObject.score >= min_score)
@@ -58,12 +60,12 @@ def get_predictions_by_score(db: Session, min_score: float):
     ]
 
 
-def get_prediction_count_last_week(db: Session):
+def query_get_prediction_count_last_week(db: Session):
     one_week_ago = datetime.utcnow() - timedelta(days=7)
     count = db.query(PredictionSession).filter(PredictionSession.timestamp >= one_week_ago).count()
     return count
 
-def get_labels_from_last_week(db: Session):
+def query_get_labels_from_last_week(db: Session):
     one_week_ago = datetime.utcnow() - timedelta(days=7)
     rows = (db.query(DetectionObject.label)
               .join(PredictionSession, DetectionObject.prediction_uid == PredictionSession.uid)
@@ -72,7 +74,7 @@ def get_labels_from_last_week(db: Session):
               .all())
     return [r[0] for r in rows]
 
-def delete_prediction(db: Session, uid: str):
+def query_delete_prediction(db: Session, uid: str):
     prediction = db.query(PredictionSession).filter_by(uid=uid).first()
     if prediction:
         # Deleting all dependent detection objects
@@ -83,7 +85,7 @@ def delete_prediction(db: Session, uid: str):
     return None
 
 
-def get_prediction_stats(db: Session):
+def query_get_prediction_stats(db: Session):
     one_week_ago = datetime.utcnow() - timedelta(days=7)
     total = db.query(PredictionSession).filter(PredictionSession.timestamp >= one_week_ago).count()
     avg_score = (db.query(DetectionObject.score)
@@ -112,10 +114,10 @@ def get_prediction_stats(db: Session):
 
 from models import DetectionObject
 
-def get_objects_by_uid(db: Session, uid: str):
+def query_get_objects_by_uid(db: Session, uid: str):
     return db.query(DetectionObject).filter(DetectionObject.prediction_uid == uid).all()
 
-def get_prediction_stats(db: Session):
+def query_get_prediction_stats(db: Session):
     one_week_ago = datetime.utcnow() - timedelta(days=7)
 
     # Total forecasts

@@ -7,7 +7,7 @@ from tests.utils import get_auth_headers
 from PIL import Image
 from tests.seed_user import seed_test_user
 
-# דואגים שהמשתמש לבדיקה קיים
+#Make sure the user for testing exists.
 seed_test_user()
 
 client = TestClient(app)

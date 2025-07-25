@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 import queries
 from db import get_db
 import torch
+from fastapi.responses import FileResponse
+from fastapi import HTTPException
 
 
 DB_PATH = "predictions.db"
@@ -47,14 +49,14 @@ def predict(
     Image.fromarray(annotated_frame).save(predicted_path)
 
     username = getattr(request.state, "username", None)
-    queries.save_prediction_session(db, uid, original_path, predicted_path, username)
+    queries.query_save_prediction_session(db, uid, original_path, predicted_path, username)
 
     detected_labels = []
     for box in results[0].boxes:
         label = model.names[int(box.cls[0].item())]
         score = float(box.conf[0])
         bbox = box.xyxy[0].tolist()
-        queries.save_detection_object(db, uid, label, score, str(bbox))
+        queries.query_save_detection_object(db, uid, label, score, str(bbox))
         detected_labels.append(label)
 
     return {"prediction_uid": uid, "detection_count": len(results[0].boxes), "labels": detected_labels}
@@ -62,11 +64,11 @@ def predict(
 
 @app.get("/prediction/{uid}")
 def get_prediction_by_uid(uid: str, db: Session = Depends(get_db)):
-    session = queries.get_prediction_by_uid(db, uid)
+    session = queries.query_get_prediction_by_uid(db, uid)
     if not session:
         raise HTTPException(status_code=404, detail="Prediction not found")
 
-    objects = queries.get_objects_by_uid(db, uid)
+    objects = queries.query_get_objects_by_uid(db, uid)
     return {
         "uid": session.uid,
         "timestamp": session.timestamp.isoformat(),
@@ -78,17 +80,17 @@ def get_prediction_by_uid(uid: str, db: Session = Depends(get_db)):
 
 @app.get("/predictions/label/{label}")
 def get_predictions_by_label(label: str, db: Session = Depends(get_db)):
-    return queries.get_predictions_by_label(db, label)
+    return queries.query_get_predictions_by_label(db, label)
 
 
 @app.get("/predictions/score/{min_score}")
 def get_predictions_by_score(min_score: float, db: Session = Depends(get_db)):
-    return queries.get_predictions_by_score(db, min_score)
+    return queries.query_get_predictions_by_score(db, min_score)
 
 
 @app.delete("/prediction/{uid}")
 def delete_prediction(uid: str, db: Session = Depends(get_db)):
-    prediction = queries.delete_prediction(db, uid)
+    prediction = queries.query_delete_prediction(db, uid)
     if not prediction:
         raise HTTPException(status_code=404, detail="Prediction not found")
 
@@ -104,13 +106,13 @@ def delete_prediction(uid: str, db: Session = Depends(get_db)):
 
 @app.get("/predictions/count")
 def get_count(db: Session = Depends(get_db)):
-    count = queries.get_prediction_count_last_week(db)
+    count = queries.query_get_prediction_count_last_week(db)
     return {"count": count}
 
 
 @app.get("/labels")
 def get_labels(db: Session = Depends(get_db)):
-    labels = queries.get_labels_from_last_week(db)
+    labels = queries.query_get_labels_from_last_week(db)
     return {"labels": labels}
 
 
@@ -118,8 +120,7 @@ def get_labels(db: Session = Depends(get_db)):
 def health():
     return {"status": "ok!"}
 
-from fastapi.responses import FileResponse
-from fastapi import HTTPException
+
 
 @app.get("/image/{image_type}/{filename}")
 def get_image(image_type: str, filename: str):
@@ -141,7 +142,7 @@ from fastapi import Request
 
 @app.get("/prediction/{uid}/image")
 def get_prediction_image(uid: str, request: Request, db: Session = Depends(get_db)):
-    session = queries.get_prediction_by_uid(db, uid)
+    session = queries.query_get_prediction_by_uid(db, uid)
     if not session:
         raise HTTPException(status_code=404, detail="Prediction not found")
 
@@ -167,5 +168,5 @@ def get_prediction_image(uid: str, request: Request, db: Session = Depends(get_d
 
 @app.get("/stats")
 def stats(db: Session = Depends(get_db)):
-    return queries.get_prediction_stats(db)
+    return queries.query_get_prediction_stats(db)
 
