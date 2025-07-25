@@ -13,3 +13,5 @@
 uploads/
 __pycache__coverage.xml
 .coverage
+__pycache__/
+__pycache__/
