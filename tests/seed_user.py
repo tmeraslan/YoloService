@@ -1,12 +1,17 @@
 # tests/seed_user.py
-from db import SessionLocal
+from db import engine, Base, SessionLocal
 from models import User
 
 def seed_test_user():
+
+    Base.metadata.create_all(bind=engine)
+
     db = SessionLocal()
     try:
         if not db.query(User).filter_by(username="testuser").first():
-            db.add(User(username="testuser", password="testpass"))
+       
+            user = User(username="testuser", password="hashed_password")
+            db.add(user)
             db.commit()
     finally:
         db.close()
