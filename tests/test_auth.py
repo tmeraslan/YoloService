@@ -1,7 +1,5 @@
 # tests/test_auth.py
 
-#ffffgffg
-#fdfg
 import io
 import unittest
 from fastapi.testclient import TestClient

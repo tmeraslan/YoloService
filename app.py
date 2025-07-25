@@ -17,8 +17,6 @@ from db import get_db, engine, Base
 
 DB_PATH = "predictions.db"
 
-# Create the tables if they do not exist.
-Base.metadata.create_all(bind=engine)
 
 # Disable GPU
 torch.cuda.is_available = lambda: False
