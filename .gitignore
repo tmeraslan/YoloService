@@ -11,4 +11,5 @@
 *.pt
 
 uploads/
-__pycache__
+__pycache__coverage.xml
+.coverage

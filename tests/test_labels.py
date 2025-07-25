@@ -1,9 +1,12 @@
 import unittest
 from fastapi.testclient import TestClient
 from app import app
-import sqlite3
 from datetime import datetime
 from tests.utils import get_auth_headers
+
+
+from db import SessionLocal
+from models import PredictionSession, DetectionObject
 
 class TestLabelsEndpoint(unittest.TestCase):
     def setUp(self):
@@ -11,32 +14,40 @@ class TestLabelsEndpoint(unittest.TestCase):
         self.test_uid = "test-label-uid"
         self.clean()
 
-        now = datetime.now().isoformat()
-        with sqlite3.connect("predictions.db") as conn:
-            conn.execute("""
-                INSERT INTO prediction_sessions (uid, timestamp, original_image, predicted_image)
-                VALUES (?, ?, ?, ?)
-            """, (self.test_uid, now, "path/to/original.jpg", "path/to/predicted.jpg"))
-            conn.execute("""
-                INSERT INTO detection_objects (prediction_uid, label, score, box)
-                VALUES (?, ?, ?, ?)
-            """, (self.test_uid, "cat", 0.9, "[0,0,50,50]"))
-            conn.execute("""
-                INSERT INTO detection_objects (prediction_uid, label, score, box)
-                VALUES (?, ?, ?, ?)
-            """, (self.test_uid, "cat", 0.8, "[0,0,50,50]"))
-            conn.execute("""
-                INSERT INTO detection_objects (prediction_uid, label, score, box)
-                VALUES (?, ?, ?, ?)
-            """, (self.test_uid, "dog", 0.88, "[10,10,60,60]"))
+       
+        db = SessionLocal()
+        try:
+            session_row = PredictionSession(
+                uid=self.test_uid,
+                timestamp=datetime.utcnow(),
+                original_image="path/to/original.jpg",
+                predicted_image="path/to/predicted.jpg"
+            )
+            db.add(session_row)
+            db.commit()
+
+         
+            detections = [
+                DetectionObject(prediction_uid=self.test_uid, label="cat", score=0.9, box="[0,0,50,50]"),
+                DetectionObject(prediction_uid=self.test_uid, label="cat", score=0.8, box="[0,0,50,50]"),
+                DetectionObject(prediction_uid=self.test_uid, label="dog", score=0.88, box="[10,10,60,60]"),
+            ]
+            db.add_all(detections)
+            db.commit()
+        finally:
+            db.close()
 
     def tearDown(self):
         self.clean()
 
     def clean(self):
-        with sqlite3.connect("predictions.db") as conn:
-            conn.execute("DELETE FROM detection_objects WHERE prediction_uid = ?", (self.test_uid,))
-            conn.execute("DELETE FROM prediction_sessions WHERE uid = ?", (self.test_uid,))
+        db = SessionLocal()
+        try:
+            db.query(DetectionObject).filter(DetectionObject.prediction_uid == self.test_uid).delete()
+            db.query(PredictionSession).filter(PredictionSession.uid == self.test_uid).delete()
+            db.commit()
+        finally:
+            db.close()
 
     def test_labels_endpoint(self):
         response = self.client.get("/labels", headers=get_auth_headers())
