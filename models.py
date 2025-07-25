@@ -4,10 +4,11 @@ from sqlalchemy import Column, String, DateTime, Integer, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from sqlalchemy.orm import declarative_base
-
+from db import  Base
 
 # All models inherit from this base class
-Base = declarative_base()
+# Base = declarative_base()
+
   
 
 class User(Base):
