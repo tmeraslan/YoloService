@@ -1,43 +1,64 @@
 import unittest
-import sqlite3
 from datetime import datetime
 from fastapi.testclient import TestClient
 from app import app
 from tests.utils import get_auth_headers
+
+# ✨ ייבוא SQLAlchemy
+from db import SessionLocal
+from models import PredictionSession, DetectionObject
+
 client = TestClient(app)
 
 class TestGetPredictionsByScore(unittest.TestCase):
     def setUp(self):
         self.uid = "test-score-uid"
         self.clean()
-        now = datetime.now().isoformat()
-        with sqlite3.connect("predictions.db") as conn:
-            conn.execute("""
-                INSERT INTO prediction_sessions (uid, timestamp, original_image, predicted_image)
-                VALUES (?, ?, ?, ?)
-            """, (self.uid, now, "uploads/original/y.jpg", "uploads/predicted/y.jpg"))
-            conn.execute("""
-                INSERT INTO detection_objects (prediction_uid, label, score, box)
-                VALUES (?, ?, ?, ?)
-            """, (self.uid, "cat", 0.91, "[0,0,10,10]"))
+
+        # הוספת רשומות דרך SQLAlchemy
+        db = SessionLocal()
+        try:
+            session_row = PredictionSession(
+                uid=self.uid,
+                timestamp=datetime.utcnow(),
+                original_image="uploads/original/y.jpg",
+                predicted_image="uploads/predicted/y.jpg"
+            )
+            db.add(session_row)
+            db.commit()
+
+            detection_row = DetectionObject(
+                prediction_uid=self.uid,
+                label="cat",
+                score=0.91,
+                box="[0,0,10,10]"
+            )
+            db.add(detection_row)
+            db.commit()
+        finally:
+            db.close()
 
     def tearDown(self):
         self.clean()
 
     def clean(self):
-        with sqlite3.connect("predictions.db") as conn:
-            conn.execute("DELETE FROM detection_objects WHERE prediction_uid = ?", (self.uid,))
-            conn.execute("DELETE FROM prediction_sessions WHERE uid = ?", (self.uid,))
+        db = SessionLocal()
+        try:
+            db.query(DetectionObject).filter(DetectionObject.prediction_uid == self.uid).delete()
+            db.query(PredictionSession).filter(PredictionSession.uid == self.uid).delete()
+            db.commit()
+        finally:
+            db.close()
 
     def test_get_predictions_by_score(self):
-        resp = client.get("/predictions/score/0.5",headers=get_auth_headers())
+        resp = client.get("/predictions/score/0.5", headers=get_auth_headers())
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         uids = [row["uid"] for row in data]
         self.assertIn(self.uid, uids)
 
     def test_get_predictions_by_score_no_results(self):
-        # Too high a score that should not return anything
+        # ציון גבוה מאוד שלא יחזיר תוצאות
         resp = client.get("/predictions/score/0.99", headers=get_auth_headers())
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json(), [])

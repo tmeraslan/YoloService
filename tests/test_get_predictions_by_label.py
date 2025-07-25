@@ -1,9 +1,13 @@
+# test_get_predictions_by_label.py
 import unittest
-import sqlite3
 from datetime import datetime
 from fastapi.testclient import TestClient
 from app import app
 from tests.utils import get_auth_headers
+
+# ✨ ייבוא SQLAlchemy
+from db import SessionLocal
+from models import PredictionSession, DetectionObject
 
 client = TestClient(app)
 
@@ -11,27 +15,44 @@ class TestGetPredictionsByLabel(unittest.TestCase):
     def setUp(self):
         self.uid = "test-label-uid"
         self.clean()
-        now = datetime.now().isoformat()
-        with sqlite3.connect("predictions.db") as conn:
-            conn.execute("""
-                INSERT INTO prediction_sessions (uid, timestamp, original_image, predicted_image)
-                VALUES (?, ?, ?, ?)
-            """, (self.uid, now, "uploads/original/x.jpg", "uploads/predicted/x.jpg"))
-            conn.execute("""
-                INSERT INTO detection_objects (prediction_uid, label, score, box)
-                VALUES (?, ?, ?, ?)
-            """, (self.uid, "car", 0.88, "[1,1,10,10]"))
+
+        # יצירת session + detection עם SQLAlchemy
+        db = SessionLocal()
+        try:
+            session_row = PredictionSession(
+                uid=self.uid,
+                timestamp=datetime.utcnow(),
+                original_image="uploads/original/x.jpg",
+                predicted_image="uploads/predicted/x.jpg"
+            )
+            db.add(session_row)
+            db.commit()
+
+            detection_row = DetectionObject(
+                prediction_uid=self.uid,
+                label="car",
+                score=0.88,
+                box="[1,1,10,10]"
+            )
+            db.add(detection_row)
+            db.commit()
+        finally:
+            db.close()
 
     def tearDown(self):
         self.clean()
 
     def clean(self):
-        with sqlite3.connect("predictions.db") as conn:
-            conn.execute("DELETE FROM detection_objects WHERE prediction_uid = ?", (self.uid,))
-            conn.execute("DELETE FROM prediction_sessions WHERE uid = ?", (self.uid,))
+        db = SessionLocal()
+        try:
+            db.query(DetectionObject).filter(DetectionObject.prediction_uid == self.uid).delete()
+            db.query(PredictionSession).filter(PredictionSession.uid == self.uid).delete()
+            db.commit()
+        finally:
+            db.close()
 
     def test_get_predictions_by_label(self):
-        resp = client.get("/predictions/label/car",headers=get_auth_headers())
+        resp = client.get("/predictions/label/car", headers=get_auth_headers())
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         uids = [row["uid"] for row in data]
