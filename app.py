@@ -77,8 +77,9 @@ def get_prediction_by_uid(uid: str, db: Session = Depends(get_db)):
         "timestamp": session.timestamp.isoformat(),
         "original_image": session.original_image,
         "predicted_image": session.predicted_image,
-        "detection_objects": [obj.__dict__ for obj in objects],
+        "detection_objects": [to_dict(obj) for obj in objects],
     }
+
 
 
 @app.get("/predictions/label/{label}")
@@ -169,3 +170,36 @@ def get_prediction_image(uid: str, request: Request, db: Session = Depends(get_d
 @app.get("/stats")
 def stats(db: Session = Depends(get_db)):
     return queries.query_get_prediction_stats(db)
+
+def to_dict(obj):
+    """
+    Convert an SQLAlchemy model instance or a generic Python object
+    into a valid dictionary.
+
+    This helper function inspects the given object:
+    - If the object is a SQLAlchemy model instance (has a __table__ attribute),
+      it extracts all columns and their values into a dictionary.
+    - Otherwise, it attempts to extract all public, non-callable attributes
+      from the object and return them in a dictionary.
+
+    Parameters:
+        obj (Any): The object to convert.
+
+    Returns:
+        dict: A dictionary representation of the object.
+    """
+    # Check if this is a SQLAlchemy model (has a __table__ attribute)
+    if hasattr(obj, '__table__'):
+        return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
+    else:
+        # Fallback: gather all public, non-callable attributes
+        d = {}
+        for attr in dir(obj):
+            if not attr.startswith('_'):  # ignore private/protected attributes
+                value = getattr(obj, attr)
+                if not callable(value):  # ignore methods
+                    d[attr] = value
+        return d
+
+
+

@@ -1,9 +1,9 @@
 # queries.py
-###
+
 from sqlalchemy.orm import Session
 from models import PredictionSession, DetectionObject
 from datetime import datetime, timedelta
-
+from models import DetectionObject
 
 def query_save_prediction_session(db, uid, original_image, predicted_image, username=None):
     # Create a new object of the PredictionSession table
@@ -117,35 +117,3 @@ from models import DetectionObject
 def query_get_objects_by_uid(db: Session, uid: str):
     return db.query(DetectionObject).filter(DetectionObject.prediction_uid == uid).all()
 
-def query_get_prediction_stats(db: Session):
-    one_week_ago = datetime.utcnow() - timedelta(days=7)
-
-    # Total forecasts
-    total_predictions = db.query(PredictionSession) \
-                          .filter(PredictionSession.timestamp >= one_week_ago) \
-                          .count()
-
-    # Average confidence scores
-    scores = (db.query(DetectionObject.score)
-                .join(PredictionSession, DetectionObject.prediction_uid == PredictionSession.uid)
-                .filter(PredictionSession.timestamp >= one_week_ago)
-                .all())
-    if scores:
-        avg_conf = sum([s[0] for s in scores if s[0] is not None]) / len(scores)
-    else:
-        avg_conf = 0.0
-
-    # Most common labels
-    label_counts = {}
-    labels = (db.query(DetectionObject.label)
-                .join(PredictionSession, DetectionObject.prediction_uid == PredictionSession.uid)
-                .filter(PredictionSession.timestamp >= one_week_ago)
-                .all())
-    for (label,) in labels:
-        label_counts[label] = label_counts.get(label, 0) + 1
-
-    return {
-        "total_predictions": total_predictions,
-        "average_confidence_score": round(avg_conf, 2),
-        "most_common_labels": label_counts
-    }
