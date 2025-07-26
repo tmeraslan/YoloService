@@ -1,10 +1,9 @@
-# tests/conftest.py
-import os
 import pytest
-from db import engine, Base
 
-@pytest.fixture(scope="session", autouse=True)
-def create_upload_dirs():
-    os.makedirs("uploads/original", exist_ok=True)
-    os.makedirs("uploads/predicted", exist_ok=True)
+@pytest.fixture(autouse=True)
+def mock_verify_user(monkeypatch):
+    def fake_verify_user(username: str, password: str):
+       
+        return username == "testuser" and password == "testpass"
 
+    monkeypatch.setattr("auth_middleware.verify_user", fake_verify_user)

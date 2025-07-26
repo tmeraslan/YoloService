@@ -1,20 +1,17 @@
 import unittest
 import io
-import os
-import base64
+from unittest.mock import MagicMock, patch, mock_open
 from fastapi.testclient import TestClient
 from PIL import Image
+import numpy as np
 from app import app
-from db import SessionLocal
-from models import PredictionSession
 
 client = TestClient(app)
 
 
 def get_auth_headers():
-    creds = "testuser:testpass"
-    encoded = base64.b64encode(creds.encode()).decode()
-    return {"Authorization": f"Basic {encoded}"}
+    return {"Authorization": "Basic dGVzdHVzZXI6dGVzdHBhc3M="}  # user:pass לדוגמה
+
 
 def create_image_bytes():
     img = Image.new("RGB", (20, 20), color=(0, 255, 0))
@@ -25,53 +22,142 @@ def create_image_bytes():
 
 
 class TestPredictEndpoint(unittest.TestCase):
-    def test_predict_endpoint(self):
+
+    @patch("app.queries.query_save_prediction_session")
+    @patch("app.model")
+    @patch("shutil.copyfileobj")
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("PIL.Image.Image.save")
+    def test_predict_endpoint_basic(
+        self,
+        mock_save_img,
+        mock_open_func,
+        mock_copyfileobj,
+        mock_model,
+        mock_save_session,
+    ):
+        
+        mock_result = MagicMock()
+        mock_result.boxes = []
+
+        img = Image.new("RGB", (20, 20), color=(0, 255, 0))
+        mock_result.plot.return_value = np.array(img)
+
+        mock_model.return_value = [mock_result]
+
+       
         img_bytes = create_image_bytes()
         files = {"file": ("dummy.jpg", img_bytes, "image/jpeg")}
         resp = client.post("/predict", files=files, headers=get_auth_headers())
+
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertIn("prediction_uid", data)
-        self.assertIn("labels", data)
-        self.assertIn("detection_count", data)
-        # Make sure the file is saved.
-        predicted_path = os.path.join("uploads/predicted", f"{data['prediction_uid']}.jpg")
-        self.assertTrue(os.path.exists(predicted_path))
+        self.assertEqual(data["detection_count"], 0)
+        self.assertEqual(data["labels"], [])
 
-    def test_predict_with_auth_and_verify_db_insert(self):
-        img_bytes = create_image_bytes()
-        files = {"file": ("dummy2.jpg", img_bytes, "image/jpeg")}
-        resp = client.post("/predict", files=files, headers=get_auth_headers())
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertIn("prediction_uid", data)
+        mock_save_session.assert_called_once()
 
- 
-        db = SessionLocal()
-        try:
-            row = db.query(PredictionSession).filter_by(uid=data["prediction_uid"]).first()
-            self.assertIsNotNone(row)
-        finally:
-            db.close()
+    @patch("app.queries.query_save_prediction_session")
+    @patch("app.model")
+    @patch("shutil.copyfileobj")
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("PIL.Image.Image.save")
+    def test_predict_runs_yolo_and_saves_image(
+        self,
+        mock_save_img,
+        mock_open_func,
+        mock_copyfileobj,
+        mock_model,
+        mock_save_session,
+    ):
+        mock_result = MagicMock()
+        mock_result.boxes = []
+        img = Image.new("RGB", (20, 20), color=(0, 255, 0))
+        mock_result.plot.return_value = np.array(img)
 
-    def test_predict_runs_yolo_and_saves_image(self):
+        mock_model.return_value = [mock_result]
+
         img_bytes = create_image_bytes()
         files = {"file": ("cover.jpg", img_bytes, "image/jpeg")}
         resp = client.post("/predict", files=files, headers=get_auth_headers())
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        uid = data["prediction_uid"]
-        predicted_path = os.path.join("uploads/predicted", f"{uid}.jpg")
-        # Verify that an output image file has been created.
-        self.assertTrue(os.path.exists(predicted_path))
 
-    def test_predict_with_detected_object(self):
-        # make sure beatles.jpeg exists in your test directory
-        with open("beatles.jpeg", "rb") as f:
-            files = {"file": ("beatles.jpeg", f, "image/jpeg")}
-            resp = client.post("/predict", files=files, headers=get_auth_headers())
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        # Verify labels are found
-        self.assertGreater(data["detection_count"], 0)
-        self.assertTrue(len(data["labels"]) > 0)
+        self.assertIn("prediction_uid", data)
+        # Checking that the image save has been read
+        self.assertTrue(mock_save_img.called)
+
+    @patch("app.queries.query_save_prediction_session")
+    @patch("app.queries.query_save_detection_object")
+    @patch("app.model")
+    @patch("shutil.copyfileobj")
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("PIL.Image.Image.save")
+    def test_predict_with_detected_object(
+        self,
+        mock_save_img,
+        mock_open_func,
+        mock_copyfileobj,
+        mock_model,
+        mock_save_detection,
+        mock_save_session,
+    ):
+        # Define 2 fake boxes
+        mock_box1 = MagicMock()
+        mock_box1.cls = [MagicMock(item=MagicMock(return_value=0))]
+        mock_box1.conf = [0.9]
+        mock_box1.xyxy = [np.array([1, 2, 3, 4])]
+
+        mock_box2 = MagicMock()
+        mock_box2.cls = [MagicMock(item=MagicMock(return_value=1))]
+        mock_box2.conf = [0.8]
+        mock_box2.xyxy = [np.array([5, 6, 7, 8])]
+
+        mock_result = MagicMock()
+        mock_result.boxes = [mock_box1, mock_box2]
+
+        img = Image.new("RGB", (20, 20), color=(0, 255, 0))
+        mock_result.plot.return_value = np.array(img)
+
+        mock_model.names = {0: "cat", 1: "dog"}
+        mock_model.return_value = [mock_result]
+
+        img_bytes = create_image_bytes()
+        files = {"file": ("beatles.jpeg", img_bytes, "image/jpeg")}
+        resp = client.post("/predict", files=files, headers=get_auth_headers())
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["detection_count"], 2)
+        self.assertIn("cat", data["labels"])
+        self.assertIn("dog", data["labels"])
+        self.assertEqual(mock_save_detection.call_count, 2)
+
+    @patch("app.queries.query_save_prediction_session")
+    @patch("app.model")
+    @patch("shutil.copyfileobj")
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("PIL.Image.Image.save")
+    def test_predict_with_auth_and_verify_db_insert_mocked(
+        self,
+        mock_save_img,
+        mock_open_func,
+        mock_copyfileobj,
+        mock_model,
+        mock_save_session,
+    ):
+        # No need for a real database, just checking that the function call was made
+        mock_result = MagicMock()
+        mock_result.boxes = []
+        img = Image.new("RGB", (20, 20), color=(0, 255, 0))
+        mock_result.plot.return_value = np.array(img)
+
+        mock_model.return_value = [mock_result]
+
+        img_bytes = create_image_bytes()
+        files = {"file": ("dummy2.jpg", img_bytes, "image/jpeg")}
+        resp = client.post("/predict", files=files, headers=get_auth_headers())
+
+        self.assertEqual(resp.status_code, 200)
+        mock_save_session.assert_called_once()

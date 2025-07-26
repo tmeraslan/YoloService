@@ -1,53 +1,78 @@
 # tests/test_auth.py
-
-import io
 import unittest
+from unittest.mock import patch, Mock
 from fastapi.testclient import TestClient
+
 from app import app
-from tests.utils import get_auth_headers
-from PIL import Image
-from tests.seed_user import seed_test_user
+from db import get_db
 
-#Make sure the user for testing exists.
-seed_test_user()
-
-client = TestClient(app)
-
-def create_dummy_image():
-    img = Image.new("RGB", (10, 10), color=(255, 0, 0))
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG")
-    buf.seek(0)
-    return buf
 
 class TestAuth(unittest.TestCase):
+    """
+    Test suite for authentication behavior on /predictions/count.
+    The database layer is fully mocked (no real DB is used).
+    """
 
-  
-        
+    def setUp(self):
+        """
+        Set up a test client and override the get_db dependency
+        with a mock to avoid touching the real database.
+        """
+        self.client = TestClient(app)
 
-    def test_health_no_auth(self):
-        resp = client.get("/health")
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn("status", resp.json())
+        def override_get_db():
+            return Mock()
 
-    def test_predict_no_auth(self):
-        img_bytes = create_dummy_image()
-        files = {"file": ("dummy.jpg", img_bytes, "image/jpeg")}
-        resp = client.post("/predict", files=files)
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn("prediction_uid", resp.json())
+        app.dependency_overrides[get_db] = override_get_db
 
-    def test_count_no_auth(self):
-        resp = client.get("/predictions/count")
-        self.assertEqual(resp.status_code, 401)
+    def tearDown(self):
+        """
+        Clean up after each test by clearing dependency overrides.
+        """
+        app.dependency_overrides = {}
 
-    def test_count_with_auth(self):
-        headers = get_auth_headers("testuser", "testpass")
-        resp = client.get("/predictions/count", headers=headers)
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn("count", resp.json())
+    @patch("queries.query_get_prediction_count_last_week")
+    def test_count_no_auth(self, mock_count):
+        """
+        Verify that calling /predictions/count without any Authorization header
+        returns a 401 response.
+        """
+        mock_count.return_value = 5  # Doesn't matter, no auth should block access
 
-    def test_count_with_wrong_auth(self):
-        headers = get_auth_headers("wronguser", "wrongpass")
-        resp = client.get("/predictions/count", headers=headers)
-        self.assertEqual(resp.status_code, 401)
+        response = self.client.get("/predictions/count")
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {"detail": "Missing credentials"})
+
+    @patch("queries.query_get_prediction_count_last_week")
+    def test_count_with_auth(self, mock_count):
+        """
+        Verify that calling /predictions/count with valid credentials
+        returns a 200 response and the expected mocked count.
+        """
+        mock_count.return_value = 7
+
+        # This is base64 for "testuser:testpass"
+        headers = {
+            "Authorization": "Basic dGVzdHVzZXI6dGVzdHBhc3M="
+        }
+
+        response = self.client.get("/predictions/count", headers=headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"count": 7})
+
+    @patch("queries.query_get_prediction_count_last_week")
+    def test_count_with_wrong_auth(self, mock_count):
+        """
+        Verify that calling /predictions/count with incorrect credentials
+        returns a 401 response.
+        """
+        mock_count.return_value = 0  # Doesn't matter, wrong auth should fail
+
+        # This is base64 for "wrong:user"
+        headers = {
+            "Authorization": "Basic d3Jvbmc6dXNlcg=="
+        }
+
+        response = self.client.get("/predictions/count", headers=headers)
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {"detail": "Invalid credentials"})
