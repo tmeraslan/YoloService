@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from app import app
 from tests.utils import get_auth_headers
 from datetime import datetime
+import queries
 
 client = TestClient(app)
 

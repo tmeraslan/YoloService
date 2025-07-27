@@ -5,6 +5,8 @@ from fastapi.testclient import TestClient
 from PIL import Image
 import numpy as np
 from app import app
+import queries
+import controllers
 
 client = TestClient(app)
 
@@ -23,8 +25,8 @@ def create_image_bytes():
 
 class TestPredictEndpoint(unittest.TestCase):
 
-    @patch("app.queries.query_save_prediction_session")
-    @patch("app.model")
+    @patch("queries.query_save_prediction_session")
+    @patch("controllers.model")
     @patch("shutil.copyfileobj")
     @patch("builtins.open", new_callable=mock_open)
     @patch("PIL.Image.Image.save")
@@ -58,8 +60,8 @@ class TestPredictEndpoint(unittest.TestCase):
 
         mock_save_session.assert_called_once()
 
-    @patch("app.queries.query_save_prediction_session")
-    @patch("app.model")
+    @patch("queries.query_save_prediction_session")
+    @patch("controllers.model")
     @patch("shutil.copyfileobj")
     @patch("builtins.open", new_callable=mock_open)
     @patch("PIL.Image.Image.save")
@@ -88,9 +90,9 @@ class TestPredictEndpoint(unittest.TestCase):
         # Checking that the image save has been read
         self.assertTrue(mock_save_img.called)
 
-    @patch("app.queries.query_save_prediction_session")
-    @patch("app.queries.query_save_detection_object")
-    @patch("app.model")
+    @patch("queries.query_save_prediction_session")
+    @patch("queries.query_save_detection_object")
+    @patch("controllers.model")
     @patch("shutil.copyfileobj")
     @patch("builtins.open", new_callable=mock_open)
     @patch("PIL.Image.Image.save")
@@ -134,8 +136,8 @@ class TestPredictEndpoint(unittest.TestCase):
         self.assertIn("dog", data["labels"])
         self.assertEqual(mock_save_detection.call_count, 2)
 
-    @patch("app.queries.query_save_prediction_session")
-    @patch("app.model")
+    @patch("queries.query_save_prediction_session")
+    @patch("controllers.model")
     @patch("shutil.copyfileobj")
     @patch("builtins.open", new_callable=mock_open)
     @patch("PIL.Image.Image.save")

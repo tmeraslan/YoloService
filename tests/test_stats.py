@@ -3,12 +3,14 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import app
 from tests.utils import get_auth_headers
+import queries
+
 
 class TestStatsEndpoint(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
 
-    @patch("app.queries.query_get_prediction_stats")
+    @patch("queries.query_get_prediction_stats")
     def test_stats_endpoint_mocked(self, mock_query_stats):
         
         mock_query_stats.return_value = {

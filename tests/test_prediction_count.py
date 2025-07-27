@@ -1,14 +1,17 @@
+
+#test_prediction
 import unittest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import app
 from tests.utils import get_auth_headers
+import queries
 
 class TestPredictionCount(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
 
-    @patch("app.queries.query_get_prediction_count_last_week")
+    @patch("queries.query_get_prediction_count_last_week")
     def test_prediction_count_endpoint_mocked(self, mock_query_count):
         # We will define that the query call will return a predefined value.
         mock_query_count.return_value = 5

@@ -3,12 +3,13 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import app
 from tests.utils import get_auth_headers
+import queries
 
 client = TestClient(app)
 
 class TestLabelsEndpoint(unittest.TestCase):
 
-    @patch("app.queries.query_get_labels_from_last_week")
+    @patch("queries.query_get_labels_from_last_week")
     def test_labels_endpoint(self, mock_query):
         # Define dummy labels
         mock_query.return_value = ["cat", "dog", "bird"]

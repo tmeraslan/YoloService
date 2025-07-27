@@ -3,12 +3,12 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import app
 from tests.utils import get_auth_headers
-
+import queries
 client = TestClient(app)
 
 class TestGetPredictionsByLabel(unittest.TestCase):
 
-    @patch("app.queries.query_get_predictions_by_label")
+    @patch("queries.query_get_predictions_by_label")
     def test_get_predictions_by_label(self, mock_query):
         # Defining a simulated result that the function will return
         mock_query.return_value = [
