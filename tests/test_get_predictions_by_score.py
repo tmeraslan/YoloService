@@ -4,12 +4,13 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import app
 from tests.utils import get_auth_headers
+import queries
 
 client = TestClient(app)
 
 class TestGetPredictionsByScore(unittest.TestCase):
 
-    @patch("app.queries.query_get_predictions_by_score")
+    @patch("queries.query_get_predictions_by_score")
     def test_get_predictions_by_score(self, mock_query):
         # Returns a mock result list of UIDs with dates
         mock_query.return_value = [
@@ -23,7 +24,7 @@ class TestGetPredictionsByScore(unittest.TestCase):
         self.assertIsInstance(data, list)
         self.assertTrue(any(row["uid"] == "test-score-uid" for row in data))
 
-    @patch("app.queries.query_get_predictions_by_score")
+    @patch("queries.query_get_predictions_by_score")
     def test_get_predictions_by_score_no_results(self, mock_query):
         
         mock_query.return_value = []

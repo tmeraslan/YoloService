@@ -5,6 +5,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import app
 from tests.utils import get_auth_headers
+import queries
 
 class TestGetImage(unittest.TestCase):
     def setUp(self):

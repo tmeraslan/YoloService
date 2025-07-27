@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app import app
 from db import get_db
 from tests.utils import get_auth_headers
-
+import queries
 
 class TestDeletePrediction(unittest.TestCase):
     """
