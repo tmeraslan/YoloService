@@ -11,4 +11,6 @@ app.middleware("http")(basic_auth_middleware())
 
 app.include_router(controllers.router)
 
-
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8080)
