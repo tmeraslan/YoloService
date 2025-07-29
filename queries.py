@@ -97,3 +97,6 @@ def query_get_prediction_stats(db: Session):
 
 def query_get_objects_by_uid(db: Session, uid: str):
     return db.query(DetectionObject).filter(DetectionObject.prediction_uid == uid).all()
+
+
+

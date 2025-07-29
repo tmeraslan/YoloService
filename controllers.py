@@ -132,6 +132,12 @@ def get_stats(db: Session = Depends(get_db)):
     stats = queries.query_get_prediction_stats(db)
     return stats
 
+@router.get("/health")
+def health():
+    """
+    Health check endpoint
+    """
+    return {"status": "ok!"}
 
 def to_dict(obj):
     if hasattr(obj, '__table__'):
