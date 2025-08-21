@@ -65,7 +65,7 @@ jobs:
       - name: Download all Allure results
         uses: actions/download-artifact@v4
         with:
-          pattern: allure-results-*
+          pattern: allure-results
           path: allure-results-downloaded
           merge-multiple: false
 
