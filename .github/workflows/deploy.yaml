@@ -30,7 +30,8 @@ jobs:
       #  Running tests with coverage and generating XML report
       - name: Run tests with coverage
         run: |
-          pytest --cov --cov-branch --cov-report=xml --alluredir=allure-results
+          mkdir -p allure-results
+          pytest --cov --cov-branch --cov-report=xml --alluredir=allure-results/
 
 
       #  Uploading coverage  report to Codecov
