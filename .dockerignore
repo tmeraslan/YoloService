@@ -1,0 +1,7 @@
+
+.venv
+.git
+.idea
+.pytest_cash
+
+uploads/
