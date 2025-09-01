@@ -1,3 +1,4 @@
+#requirements.txt
 # FastAPI and Uvicorn (for web API)
 fastapi>=0.95.0
 uvicorn>=0.21.1
@@ -14,3 +15,5 @@ pytest-html==3.2.0
 sqlalchemy
 allure-pytest
 psycopg2-binary
+boto3
+botocore
