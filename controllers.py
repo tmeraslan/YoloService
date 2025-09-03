@@ -10,6 +10,9 @@ from urllib.parse import unquote
 from ultralytics import YOLO
 import torch
 
+from time import monotonic
+from urllib.parse import unquote
+
 import queries
 from db import get_db
 from s3_utils import (
@@ -40,11 +43,14 @@ def predict(
     img: str | None = Query(None, description="S3 key (e.g., public/beatles.jpeg)"),
     img_url: str | None = Query(None, description="Full HTTP/HTTPS or presigned URL"),
 ):
+    t0 = monotonic()  # ← נמדוד זמן ריצה
+
     uid = str(uuid.uuid4())
     username = getattr(request.state, "username", None) or "anonymous"
+    user_id = username  # ← כך נחזיר בשדה user_id
 
     source_type = None  # "s3key" | "url" | "file"
-    key_original: str | None = None  # מה נחזיר בתגובה
+    key_original: str | None = None
     ext = ".jpg"
 
     if img_url:
@@ -56,26 +62,25 @@ def predict(
         original_path = os.path.join(UPLOAD_DIR, uid + ext)
         if not s3_or_http_download(ref, original_path):
             raise HTTPException(status_code=400, detail=f"Failed to download from URL '{img_url}'")
-        # המקור לא היה ב-S3, נגדיר key_original שלנו (ונעלה בהמשך)
         key_original = f"{username}/original/{uid}{ext}"
 
     elif img:
         source_type = "s3key"
-        key = unquote(img).strip().replace("\r", "").replace("\n", "")
+        key = unquote(img).strip()  # ← היה כאן בטעות שימוש ב-img_url; וגם מנקה %0A
         if not key:
             raise HTTPException(status_code=400, detail="Empty 'img' key after trimming")
         ext = os.path.splitext(key)[1] or ".jpg"
         original_path = os.path.join(UPLOAD_DIR, uid + ext)
-        if not s3_or_http_download(key, original_path):
+
+        # אם s3_or_http_download תומך ב-s3://, נבנה URL מלא; אם לא – השתמש ב-s3_download_to_path
+        # דוגמה עם s3_or_http_download:
+        s3_url = f"s3://{os.getenv('AWS_S3_BUCKET')}/{key}"
+        if not s3_or_http_download(s3_url, original_path):
             raise HTTPException(
                 status_code=400,
-                detail=(
-                    f"Failed to download '{key}'. If the object is private, either make it public "
-                    f"or call with 'img_url' (presigned URL)."
-                ),
+                detail=(f"Failed to download '{key}' from S3. Make it public or provide 'img_url' (presigned)."),
             )
-        # כאן המקור כבר ב-S3 – לא מעלים אותו שוב; נחזיר את המפתח שקיבלנו
-        key_original = key
+        key_original = key  # המקור כבר ב-S3, לא נעלה אותו שוב
 
     else:
         if not file:
@@ -88,14 +93,14 @@ def predict(
         original_path = os.path.join(UPLOAD_DIR, uid + ext)
         with open(original_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
-        # המקור לא היה ב-S3, נגדיר key_original שלנו (ונעלה בהמשך)
         key_original = f"{username}/original/{uid}{ext}"
 
-    # הפעלה של YOLO ושמירת פלט מקומי
+    # הרצת YOLO ושמירת פלט
     predicted_path = os.path.join(PREDICTED_DIR, uid + ext)
     results = model(original_path, device="cpu")
     Image.fromarray(results[0].plot()).save(predicted_path)
 
+    # DB
     queries.query_save_prediction_session(db, uid, original_path, predicted_path, username)
 
     detected_labels = []
@@ -107,21 +112,124 @@ def predict(
         detected_labels.append(label)
 
     # העלאות ל-S3
-    # אם המקור לא היה ב-S3 (file/url) – נעלה אותו עכשיו; אם הגיע כ-img (s3key) – נדלג.
     if source_type in ("file", "url"):
         extra = {"Metadata": {"prediction_uid": uid, "user": username}}
-        _ = s3_upload_file(original_path, key_original, extra_args=extra)  # אפשר לבדוק הצלחה אם רוצים
+        _ = s3_upload_file(original_path, key_original, extra_args=extra)
 
-    key_predicted = f"{username}/predicted/{uid}{ext}"
+    predicted_s3_key = f"{username}/predicted/{uid}{ext}"  # ← שם השדה שביקשת
     extra_pred = {"Metadata": {"prediction_uid": uid, "user": username}}
-    _ = s3_upload_file(predicted_path, key_predicted, extra_args=extra_pred)
+    _ = s3_upload_file(predicted_path, predicted_s3_key, extra_args=extra_pred)
 
-    # החזרה המינימלית שביקשת
+    processing_time = round(monotonic() - t0, 3)  # ← זמן ריצה בשניות, מעוגל
+
+    # ← ההחזרה בפורמט שביקשת
     return {
-        "ok": True,
-        "key_original": key_original,
-        "key_predicted": key_predicted,
+        "prediction_uid": uid,
+        "detection_count": len(results[0].boxes),
+        "labels": detected_labels,
+        "time_took": processing_time,
+        "user_id": user_id,
+        "predicted_s3_key": predicted_s3_key,
     }
+
+
+# @router.post("/predict")
+# def predict(
+#     request: Request,
+#     file: UploadFile | None = File(None),
+#     db: Session = Depends(get_db),
+#     img: str | None = Query(None, description="S3 key (e.g., public/beatles.jpeg)"),
+#     img_url: str | None = Query(None, description="Full HTTP/HTTPS or presigned URL"),
+# ):
+#     print("#############")
+#     print(img_url)
+
+#     uid = str(uuid.uuid4())
+#     username = getattr(request.state, "username", None) or "anonymous"
+
+#     source_type = None  # "s3key" | "url" | "file"
+#     key_original: str | None = None  # מה נחזיר בתגובה
+#     ext = ".jpg"
+
+#     if img_url:
+#         source_type = "url"
+#         ref = unquote(img_url).strip().replace("\r", "").replace("\n", "")
+#         if not ref:
+#             raise HTTPException(status_code=400, detail="Empty 'img_url' after trimming")
+#         ext = os.path.splitext(ref.split("?", 1)[0])[1] or ".jpg"
+#         original_path = os.path.join(UPLOAD_DIR, uid + ext)
+#         if not s3_or_http_download(ref, original_path):
+#             raise HTTPException(status_code=400, detail=f"Failed to download from URL '{img_url}'")
+#         # המקור לא היה ב-S3, נגדיר key_original שלנו (ונעלה בהמשך)
+#         key_original = f"{username}/original/{uid}{ext}"
+
+#     elif img:
+#         source_type = "s3key"
+#         key = f"tameer-yolo-images/{img_url}"
+#         if not key:
+#             raise HTTPException(status_code=400, detail="Empty 'img' key after trimming")
+#         ext = os.path.splitext(key)[1] or ".jpg"
+#         original_path = os.path.join(UPLOAD_DIR, uid + ext)
+
+    
+
+#         if not s3_or_http_download(key, original_path):
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail=(
+#                     f"Failed to download '{key}'. If the object is private, either make it public "
+#                     f"or call with 'img_url' (presigned URL)."
+#                 ),
+#             )
+#         # כאן המקור כבר ב-S3 – לא מעלים אותו שוב; נחזיר את המפתח שקיבלנו
+#         key_original = key
+
+#     else:
+#         if not file:
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail="Provide one of: file, ?img=<s3-key>, or ?img_url=<http(s) URL>",
+#             )
+#         source_type = "file"
+#         ext = os.path.splitext(file.filename)[1] or ".jpg"
+#         original_path = os.path.join(UPLOAD_DIR, uid + ext)
+#         with open(original_path, "wb") as f:
+#             shutil.copyfileobj(file.file, f)
+#         # המקור לא היה ב-S3, נגדיר key_original שלנו (ונעלה בהמשך)
+#         key_original = f"{username}/original/{uid}{ext}"
+
+#     # הפעלה של YOLO ושמירת פלט מקומי
+#     predicted_path = os.path.join(PREDICTED_DIR, uid + ext)
+#     results = model(original_path, device="cpu")
+#     Image.fromarray(results[0].plot()).save(predicted_path)
+
+#     queries.query_save_prediction_session(db, uid, original_path, predicted_path, username)
+
+#     detected_labels = []
+#     for box in results[0].boxes:
+#         label = model.names[int(box.cls[0].item())]
+#         score = float(box.conf[0])
+#         bbox = box.xyxy[0].tolist()
+#         queries.query_save_detection_object(db, uid, label, score, str(bbox))
+#         detected_labels.append(label)
+
+#     # העלאות ל-S3
+#     # אם המקור לא היה ב-S3 (file/url) – נעלה אותו עכשיו; אם הגיע כ-img (s3key) – נדלג.
+#     if source_type in ("file", "url"):
+#         extra = {"Metadata": {"prediction_uid": uid, "user": username}}
+#         _ = s3_upload_file(original_path, key_original, extra_args=extra)  # אפשר לבדוק הצלחה אם רוצים
+
+#     key_predicted = f"{username}/predicted/{uid}{ext}"
+#     extra_pred = {"Metadata": {"prediction_uid": uid, "user": username}}
+#     _ = s3_upload_file(predicted_path, key_predicted, extra_args=extra_pred)
+
+#     # החזרה המינימלית שביקשת
+
+#     return {
+#         "ok": True,
+#         "key_original": key_original,
+#         "key_predicted": key_predicted,
+#     }
 
 
 

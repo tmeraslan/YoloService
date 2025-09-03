@@ -24,29 +24,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
     torch torchvision
 
-# תלויות פייתון
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
  && pip install --no-cache-dir python-dotenv
 
-# קוד האפליקציה
+
 COPY . .
 
-# ⬅️ העתקת פרופיל AWS לתוך האימג׳ (ראה הסבר למטה)
-# COPY aws /root/.aws
-
-# תיקיות עבודה לקבצים
 RUN mkdir -p uploads/original uploads/predicted
 
-# ברירות מחדל (לא סודות)
 ENV AWS_REGION=eu-west-1 \
     AWS_S3_BUCKET=tameer-yolo-images \
     AWS_S3_ADDRESSING_STYLE=path \
     AWS_S3_UNSIGNED=true
 
     
-EXPOSE 8084
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8084"]
+EXPOSE 8081
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8081"]
 
 
 

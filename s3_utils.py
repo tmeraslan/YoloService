@@ -242,7 +242,10 @@ def s3_or_http_download(ref: str, dest_path: str) -> bool:
                 return False
             try:
                 os.makedirs(os.path.dirname(dest_path) or ".", exist_ok=True)
+                print("keyyyy")
+                print(key)
                 _s3.download_file(bucket, key, dest_path)
+            
                 return True
             except Exception as e:
                 logger.exception(f"S3 download (s3://...) failed: {e}")
