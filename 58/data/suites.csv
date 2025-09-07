@@ -1,0 +1,70 @@
+"DESCRIPTION","DURATION IN MS","NAME","PARENT SUITE","START TIME","STATUS","STOP TIME","SUB SUITE","SUITE","TEST CLASS","TEST METHOD"
+"","5","test_labels_endpoint","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestLabelsEndpoint","test_labels","",""
+"","14","test_predict_endpoint_basic","tests","Sun Sep 07 09:08:16 UTC 2025","failed","Sun Sep 07 09:08:16 UTC 2025","TestPredictEndpoint","test_predict","",""
+"
+        Existing session -> local files removed, S3 keys deleted, DB delete called -> 200
+        ","5","test_delete_prediction_success","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestDeletePrediction","test_delete_prediction","",""
+"","5","test_get_predictions_by_label","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestGetPredictionsByLabel","test_get_predictions_by_label","",""
+"","5","test_prediction_count_endpoint_mocked","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestPredictionCount","test_prediction_count","",""
+"","3","test_stats_endpoint_unauthorized_missing","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestStatsEndpoint","test_stats","",""
+"","5","test_get_predictions_by_label_empty","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestGetPredictionsByLabel","test_get_predictions_by_label","",""
+"
+        כאשר הקובץ הלוקאלי לא קיים וגם הפולבק מ-S3 נכשל (mok ל-s3_download_to_temp מחזיר None),
+        מצפים ל-404 עם ההודעה המתאימה.
+        ","5","test_get_prediction_image_not_found","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestGetImage","test_get_image","",""
+"","3","test_labels_endpoint_unauthorized","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestLabelsEndpoint","test_labels","",""
+"","4","test_labels_endpoint_empty","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestLabelsEndpoint","test_labels","",""
+"","5","test_get_prediction_by_uid_mocked","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestGetPredictionByUID","test_get_prediction_by_uid","",""
+"","13","test_predict_with_detected_object","tests","Sun Sep 07 09:08:16 UTC 2025","broken","Sun Sep 07 09:08:16 UTC 2025","TestPredictEndpoint","test_predict","",""
+"
+        No session -> 404 (controller fails early before any local/S3/DB actions).
+        ","5","test_delete_prediction_not_found","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestDeletePrediction","test_delete_prediction","",""
+"","3","test_prediction_count_wrong_auth","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestPredictionCount","test_prediction_count","",""
+"","4","test_get_predictions_by_score","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestGetPredictionsByScore","test_get_predictions_by_score","",""
+"","11","test_predict_with_auth_and_verify_db_insert_mocked","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestPredictEndpoint","test_predict","",""
+"","6","test_count_with_auth","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestAuth","test_auth","",""
+"
+        אם הלקוח מבקש image/jpeg — ה-Controller יחזיר JPEG.
+        ","6","test_get_prediction_image_jpeg","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestGetPredictionImage","test_get_prediction_image","",""
+"
+        בלוגיקה החדשה: אם Accept אינו תמונה (למשל application/json),
+        אנחנו עדיין מחזירים את התמונה עם content-type לפי הסיומת של הקובץ (כאן .jpg => image/jpeg).
+        ","6","test_get_prediction_image_accept_json_returns_image","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestGetPredictionImage","test_get_prediction_image","",""
+"","4","test_get_predictions_by_score_no_results","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestGetPredictionsByScore","test_get_predictions_by_score","",""
+"","71","test_count_no_auth","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestAuth","test_auth","",""
+"
+        כאשר ה-DB לא מחזיר רשומה — מצופה 404.
+        ","4","test_get_prediction_by_uid_not_found","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestGetPredictionByUID","test_get_prediction_by_uid","",""
+"
+        לפי הלוגיקה החדשה: אם Accept אינו תמונה, ה־controller בכל זאת
+        מחזיר את התמונה עם Content-Type לפי סיומת הקובץ (למשל image/jpeg).
+        לכן מצפים ל-200 ולא ל-406.
+        ","6","test_get_prediction_image_accept_json_serves_default","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestGetImage","test_get_image","",""
+"","5","test_stats_endpoint_mocked","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestStatsEndpoint","test_stats","",""
+"
+        אם הקובץ לוקאלית חסר וגם הפולבק ל-S3 נכשל — מצופה 404.
+        ","4","test_get_prediction_image_file_missing","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestGetPredictionImage","test_get_prediction_image","",""
+"
+        גם ה-GET /prediction/{uid} עצמו צריך להחזיר 404 אם הרשומה לא קיימת.
+        ","5","test_get_prediction_by_uid_not_found","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestGetPredictionImage","test_get_prediction_image","",""
+"
+        ה-Controller מחזיר {""items"": []} עבור מסנן תווית ריק.
+        ","5","test_get_predictions_by_label_empty","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestGetPredictionImage","test_get_prediction_image","",""
+"
+        Session exists -> local/S3 cleaned -> DB delete returns None
+        Controller returns 200 with informative message.
+        ","7","test_delete_prediction_db_record_missing_after_cleanup","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestDeletePrediction","test_delete_prediction","",""
+"","11","test_predict_runs_yolo_and_saves_image","tests","Sun Sep 07 09:08:16 UTC 2025","failed","Sun Sep 07 09:08:16 UTC 2025","TestPredictEndpoint","test_predict","",""
+"","3","test_prediction_count_unauthorized_missing","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestPredictionCount","test_prediction_count","",""
+"
+        אם אין Session — מצופה 404.
+        ","5","test_get_prediction_image_uid_not_found","tests","Sun Sep 07 09:08:16 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestGetPredictionImage","test_get_prediction_image","",""
+"
+        מוודא ש-username שמוחזר מה-DB נכנס למפתחי S3,
+        ושהסיומת נגזרת מ-original_image (.png),
+        וש-URL חתום נבנה עם אותם מפתחות.
+        ","5","test_get_prediction_by_uid_with_username_and_png","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestGetPredictionByUID","test_get_prediction_by_uid","",""
+"","3","test_count_with_wrong_auth","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:15 UTC 2025","TestAuth","test_auth","",""
+"
+        אם הלקוח מבקש image/png — ה-Controller מחזיר PNG (או לפחות content-type של image/png).
+        ","5","test_get_prediction_image_png","tests","Sun Sep 07 09:08:15 UTC 2025","passed","Sun Sep 07 09:08:16 UTC 2025","TestGetPredictionImage","test_get_prediction_image","",""
