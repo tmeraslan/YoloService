@@ -13,8 +13,9 @@ import torch
 from time import monotonic
 from urllib.parse import unquote
 
-import queries
+import queries, inspect
 from db import get_db
+
 from s3_utils import (
     s3_upload_file,
     s3_presign_get_url,
@@ -25,7 +26,7 @@ from s3_utils import (
 
 router = APIRouter()
 
-torch.cuda.is_available = lambda: False  # להעלים אזהרות GPU
+torch.cuda.is_available = lambda: False 
 
 UPLOAD_DIR = "uploads/original"
 PREDICTED_DIR = "uploads/predicted"
@@ -43,13 +44,13 @@ def predict(
     img: str | None = Query(None, description="S3 key (e.g., public/beatles.jpeg)"),
     img_url: str | None = Query(None, description="Full HTTP/HTTPS or presigned URL"),
 ):
-    t0 = monotonic()  # ← נמדוד זמן ריצה
+    t0 = monotonic()  
 
     uid = str(uuid.uuid4())
     username = getattr(request.state, "username", None) or "anonymous"
-    user_id = username  # ← כך נחזיר בשדה user_id
+    user_id = username  
 
-    source_type = None  # "s3key" | "url" | "file"
+    source_type = None  
     key_original: str | None = None
     ext = ".jpg"
 
@@ -66,21 +67,20 @@ def predict(
 
     elif img:
         source_type = "s3key"
-        key = unquote(img).strip()  # ← היה כאן בטעות שימוש ב-img_url; וגם מנקה %0A
+        key = unquote(img).strip() 
         if not key:
             raise HTTPException(status_code=400, detail="Empty 'img' key after trimming")
         ext = os.path.splitext(key)[1] or ".jpg"
         original_path = os.path.join(UPLOAD_DIR, uid + ext)
 
-        # אם s3_or_http_download תומך ב-s3://, נבנה URL מלא; אם לא – השתמש ב-s3_download_to_path
-        # דוגמה עם s3_or_http_download:
+     
         s3_url = f"s3://{os.getenv('AWS_S3_BUCKET')}/{key}"
         if not s3_or_http_download(s3_url, original_path):
             raise HTTPException(
                 status_code=400,
                 detail=(f"Failed to download '{key}' from S3. Make it public or provide 'img_url' (presigned)."),
             )
-        key_original = key  # המקור כבר ב-S3, לא נעלה אותו שוב
+        key_original = key  
 
     else:
         if not file:
@@ -99,6 +99,7 @@ def predict(
     predicted_path = os.path.join(PREDICTED_DIR, uid + ext)
     results = model(original_path, device="cpu")
     Image.fromarray(results[0].plot()).save(predicted_path)
+    
 
     # DB
     queries.query_save_prediction_session(db, uid, original_path, predicted_path, username)
@@ -111,7 +112,7 @@ def predict(
         queries.query_save_detection_object(db, uid, label, score, str(bbox))
         detected_labels.append(label)
 
-    # העלאות ל-S3
+  
     if source_type in ("file", "url"):
         extra = {"Metadata": {"prediction_uid": uid, "user": username}}
         _ = s3_upload_file(original_path, key_original, extra_args=extra)
@@ -122,7 +123,7 @@ def predict(
 
     processing_time = round(monotonic() - t0, 3)  # ← זמן ריצה בשניות, מעוגל
 
-    # ← ההחזרה בפורמט שביקשת
+   
     return {
         "prediction_uid": uid,
         "detection_count": len(results[0].boxes),

@@ -4,7 +4,7 @@
 #pip install
 #pthon app.py
 
-#docker file
+#docker file YOLO
 
 
 FROM python:3.10-slim-bullseye
@@ -15,12 +15,12 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# ספריות מערכת ל-OpenCV/Pillow/Ultralytics
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 libgl1 libsm6 libxext6 libxrender1 \
   && rm -rf /var/lib/apt/lists/*
 
-# Torch CPU
+
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
     torch torchvision
 
@@ -37,7 +37,7 @@ RUN mkdir -p uploads/original uploads/predicted
 ENV AWS_REGION=eu-west-1 \
     AWS_S3_BUCKET=tameer-yolo-images \
     AWS_S3_ADDRESSING_STYLE=path \
-    AWS_S3_UNSIGNED=true
+    AWS_S3_UNSIGNED=false
 
     
 EXPOSE 8081

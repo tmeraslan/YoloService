@@ -1,10 +1,19 @@
 
 #queries.py
 from sqlalchemy.orm import Session
-from models import PredictionSession, DetectionObject
+from models import PredictionSession, DetectionObject,User
 from datetime import datetime, timedelta
 
+def ensure_user(db: Session, username: str):
+    if not username:
+        return
+    user = db.get(User, username)
+    if user is None:
+        db.add(User(username=username, password="")) 
+        db.commit()
+
 def query_save_prediction_session(db: Session, uid: str, original_image: str, predicted_image: str, username=None):
+    ensure_user(db, username)
     session = PredictionSession(
         uid=uid,
         original_image=original_image,
