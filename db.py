@@ -10,10 +10,7 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL","sqlite:///./predictions.db")  # קודם מהסביבה
 DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
 
-if DB_BACKEND == "postgres":
-        DATABASE_URL = "postgresql+psycopg2://user:pass@localhost:5432/predictions"
-else:
-        DATABASE_URL = "sqlite:///./predictions.db"
+
 
 engine = create_engine(
     DATABASE_URL,
