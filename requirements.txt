@@ -17,3 +17,5 @@ allure-pytest
 psycopg2-binary
 boto3
 botocore
+python-dotenv>=1.0
+
