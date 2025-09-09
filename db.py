@@ -7,10 +7,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL","sqlite:///./predictions.db")  # קודם מהסביבה
-DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
+DB_BACKEND = os.getenv("DB_BACKEND", "sqlite")
 
-
+if DB_BACKEND == "postgres":
+    DATABASE_URL = os.getenv("DATABASE_URL")   
+else:
+    DATABASE_URL = "sqlite:///./predictions.db"
 
 engine = create_engine(
     DATABASE_URL,
@@ -35,6 +37,11 @@ def get_db():
 
 
 
+
+
+
+# DATABASE_URL = os.getenv("DATABASE_URL","sqlite:///./predictions.db")  # קודם מהסביבה
+# DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
 
 # # db.py
 
