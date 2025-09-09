@@ -8,6 +8,7 @@ import numpy as np
 from types import SimpleNamespace
 from unittest.mock import Mock
 from pathlib import Path
+from dotenv import load_dotenv
 
 # --- Fake ultralytics BEFORE importing the app/controllers ---
 @pytest.fixture(scope="session", autouse=True)
