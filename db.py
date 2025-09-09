@@ -7,19 +7,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")  # קודם מהסביבה
+DATABASE_URL = os.getenv("DATABASE_URL","sqlite:///./predictions.db")  # קודם מהסביבה
 DB_BACKEND = os.getenv("DB_BACKEND", "sqlite").lower()
 
-if not DATABASE_URL:
-    if DB_BACKEND == "postgres":
+if DB_BACKEND == "postgres":
         DATABASE_URL = "postgresql+psycopg2://user:pass@localhost:5432/predictions"
-    else:
+else:
         DATABASE_URL = "sqlite:///./predictions.db"
 
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
 )
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)

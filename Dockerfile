@@ -1,8 +1,4 @@
 
-#choose OS (ubuntu)
-#get source code (install git i needed)
-#pip install
-#pthon app.py
 
 #docker file YOLO
 
