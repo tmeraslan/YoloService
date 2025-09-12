@@ -1,5 +1,5 @@
 
-
+# yolo-build-push.yml
 
 name: Yolo Build & Push
 
@@ -52,59 +52,3 @@ jobs:
             docker.io/${{ env.IMAGE_NAME }}:${{ env.TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-
-
-# name: Yolo Build & Push
-
-# on:
-#   push:
-#     branches: [ main ]
-#   workflow_dispatch: {}
-
-# env:
-#   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/yolo
-
-# jobs:
-#   build-and-push:
-#     runs-on: ubuntu-latest
-
-#     steps:
-#       - name: Checkout
-#         uses: actions/checkout@v4
-
-#       - name: Print env (debug)
-#         run: |
-#           echo "Repo: $GITHUB_REPOSITORY"
-#           echo "SHA:  $GITHUB_SHA"
-#           docker version
-
-#       - name: Set SHORT_SHA env
-#         run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
-
-#       - name: Set up QEMU
-#         uses: docker/setup-qemu-action@v3
-
-#       - name: Set up Docker Buildx
-#         uses: docker/setup-buildx-action@v3
-
-#       - name: Login to Docker Hub
-#         uses: docker/login-action@v3
-#         with:
-#           username: ${{ secrets.DOCKERHUB_USERNAME }}
-#           password: ${{ secrets.DOCKERHUB_PASSWORD }}
-#           registry: docker.io
-
-#       # אם ה-Dockerfile לא בשורש הפרויקט, שנה context/file בהתאם
-#       - name: Build & Push (multi-arch)
-#         uses: docker/build-push-action@v6
-#         with:
-#           context: .              # למשל: ./YoloService
-#           # file: ./Dockerfile     # למשל: ./YoloService/Dockerfile
-#           push: true
-#           platforms: linux/amd64,linux/arm64
-#           tags: |
-#             docker.io/${{ env.IMAGE_NAME }}:latest
-#             docker.io/${{ env.IMAGE_NAME }}:${{ env.SHORT_SHA }}
-#           cache-from: type=gha
-#           cache-to: type=gha,mode=max
